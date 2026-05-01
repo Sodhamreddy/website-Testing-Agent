@@ -1,0 +1,266 @@
+[
+  {
+    "Website Testing Checklist": "A. Branding & Header"
+  },
+  {
+    "__EMPTY": "1. Verify that the website logo is visible, clear, and properly aligned on all pages."
+  },
+  {
+    "__EMPTY": "2. Confirm that clicking the logo navigates to the homepage from every page."
+  },
+  {
+    "__EMPTY": "3. Verify the top header/menu bar is displayed correctly on all pages."
+  },
+  {
+    "__EMPTY": "4. Check that all primary menu items are visible and clickable."
+  },
+  {
+    "__EMPTY": "5. Verify submenu items (if available) open correctly and are clickable."
+  },
+  {
+    "__EMPTY": "6. Ensure header elements (phone number, email, social media icons) are visible if applicable."
+  },
+  {
+    "__EMPTY": "7. Verify that phone, email, and social media links redirect to the correct destinations."
+  },
+  {
+    "Website Testing Checklist": "B. Navigation & Links"
+  },
+  {
+    "__EMPTY": "1. Check that breadcrumbs are displayed correctly on applicable pages and navigate properly."
+  },
+  {
+    "__EMPTY": "2. Verify that each menu item navigates to the correct page."
+  },
+  {
+    "__EMPTY": "3. Validate that internal page links (within-page anchors) work correctly."
+  },
+  {
+    "__EMPTY": "4. Confirm that all hyperlinks inside paragraphs are clickable and redirect to the correct pages."
+  },
+  {
+    "__EMPTY": "5. Ensure external links open in a new tab (if required)."
+  },
+  {
+    "Website Testing Checklist": "C. Content & Layout"
+  },
+  {
+    "__EMPTY": "1. Verify that headers (H1, H2, etc.) use consistent font styles and sizes across pages."
+  },
+  {
+    "__EMPTY": "2. Check that paragraph text is properly aligned and readable on all pages."
+  },
+  {
+    "__EMPTY": "3. Verify list items (bullets or numbered lists) are properly aligned and formatted."
+  },
+  {
+    "__EMPTY": "4. Check for spelling and grammatical errors on every page."
+  },
+  {
+    "__EMPTY": "5. Ensure content is not cut off, overlapping, or misaligned."
+  },
+  {
+    "Website Testing Checklist": "D. Forms (Contact / Other Forms)"
+  },
+  {
+    "__EMPTY": "1. Verify that the contact form is displayed properly (if available)."
+  },
+  {
+    "__EMPTY": "2. Check that required fields show appropriate error messages when left empty."
+  },
+  {
+    "__EMPTY": "3. Validate email and phone number fields with correct input rules."
+  },
+  {
+    "__EMPTY": "4. Verify error messages are clear and user-friendly."
+  },
+  {
+    "__EMPTY": "5. Check that a success message is displayed after successful form submission."
+  },
+  {
+    "__EMPTY": "6. Confirm that form data is submitted and saved correctly."
+  },
+  {
+    "Website Testing Checklist": "E. Buttons & Clickable Elements",
+    "__EMPTY": "1. Verify that button text font, size, and style are consistent across all pages."
+  },
+  {
+    "__EMPTY": "2. Check that button labels/text are clear, readable, and not truncated."
+  },
+  {
+    "__EMPTY": "3. Verify that all buttons are clickable and responsive to user interaction."
+  },
+  {
+    "__EMPTY": "4. Confirm that each button redirects to the correct page, section, or action."
+  },
+  {
+    "__EMPTY": "5. Verify hover effects (if applicable) are working correctly and are consistent across all pages."
+  },
+  {
+    "__EMPTY": "6. Check that button background color, text color, and border style are consistent across the website."
+  },
+  {
+    "__EMPTY": "7. Verify active and focus states (on click / keyboard navigation) are displayed properly."
+  },
+  {
+    "__EMPTY": "8. Ensure disabled buttons (if any) are visually distinguishable and not clickable."
+  },
+  {
+    "__EMPTY": "9. Verify buttons do not overlap with other UI elements on any screen size."
+  },
+  {
+    "__EMPTY": "10. Check that buttons are aligned properly (center/left/right as per design)."
+  },
+  {
+    "__EMPTY": "11. Verify buttons work correctly on mobile, tablet, and desktop devices."
+  },
+  {
+    "__EMPTY": "12. Ensure multiple clicks do not cause duplicate actions (e.g., multiple form submissions)."
+  },
+  {
+    "__EMPTY": "13. Verify loading indicators (spinner/disabled state) appear when an action takes time."
+  },
+  {
+    "Website Testing Checklist": "F. Social Media & Footer",
+    "__EMPTY": "1. Verify social media icons are visible (header/footer as applicable)."
+  },
+  {
+    "__EMPTY": "2. Check that all social media links redirect to the correct profiles."
+  },
+  {
+    "__EMPTY": "3. Verify footer links (Privacy Policy, Terms, About, etc.) are working correctly."
+  },
+  {
+    "Website Testing Checklist": "G. Responsiveness & Compatibility",
+    "__EMPTY": "4. Verify the website is responsive on mobile, tablet, and desktop devices."
+  },
+  {
+    "__EMPTY": "5. Check that menus, text, and buttons adjust properly on different screen sizes."
+  },
+  {
+    "__EMPTY": "6. Test the website on different browsers (Chrome, Edge, Firefox, Safari)."
+  },
+  {
+    "Website Testing Checklist": "H. Performance & Usability"
+  },
+  {
+    "__EMPTY": "1. Verify page load time is acceptable."
+  },
+  {
+    "__EMPTY": "2. Check that images load correctly and are optimized."
+  },
+  {
+    "__EMPTY": "3. Ensure no broken links or missing images."
+  },
+  {
+    "__EMPTY": "4. Verify smooth scrolling and user-friendly navigation."
+  },
+  {
+    "Website Testing Checklist": "I. Form Submission Behavior"
+  },
+  {
+    "__EMPTY": "Verify the form is submitted successfully with valid data."
+  },
+  {
+    "__EMPTY": "Verify CAPTCHA (if present) works correctly."
+  },
+  {
+    "__EMPTY": "Confirm that multiple submissions are prevented (button disabled / loader shown)."
+  },
+  {
+    "__EMPTY": "Verify loading indicator is displayed during form submission."
+  },
+  {
+    "Website Testing Checklist": "J. Thank You Page / Post-Submission Behavior"
+  },
+  {
+    "__EMPTY": "Verify whether the form redirects to a Thank You page after submission."
+  },
+  {
+    "__EMPTY": "If redirected:"
+  },
+  {
+    "__EMPTY": "Verify the Thank You page loads correctly."
+  },
+  {
+    "__EMPTY": "Check that the content/message on the Thank You page is correct, clear, and user-friendly."
+  },
+  {
+    "__EMPTY": "Verify submitted details are not displayed incorrectly or exposed."
+  },
+  {
+    "__EMPTY": "Verify if the Thank You page:"
+  },
+  {
+    "__EMPTY": "Redirects automatically to the homepage after a defined time, OR"
+  },
+  {
+    "__EMPTY": "Stays on the Thank You page as per requirement."
+  },
+  {
+    "__EMPTY": "If auto-redirect exists, verify:"
+  },
+  {
+    "__EMPTY": "Redirect timing is correct."
+  },
+  {
+    "__EMPTY": "Redirect navigates to the correct page (Homepage or specified page)."
+  },
+  {
+    "__EMPTY": "Verify manual navigation options (Home / Back button) work correctly from the Thank You page."
+  },
+  {
+    "__EMPTY": "Confirm that page refresh does not resubmit the form."
+  },
+  {
+    "Website Testing Checklist": "K. Email Notifications – Admin & User"
+  },
+  {
+    "__EMPTY": "Verify that an email notification is triggered after form submission (if applicable)."
+  },
+  {
+    "__EMPTY": "Confirm who receives the email: Admin email, User email, Both"
+  },
+  {
+    "__EMPTY": "Verify the sender email address (“From” email) is correct and matches configuration."
+  },
+  {
+    "__EMPTY": "Check the email subject line is correct and meaningful."
+  },
+  {
+    "__EMPTY": "Verify email body content:"
+  },
+  {
+    "__EMPTY": "Submitted form data is accurate."
+  },
+  {
+    "__EMPTY": "Proper formatting (line breaks, labels)."
+  },
+  {
+    "__EMPTY": "No missing or extra fields."
+  },
+  {
+    "__EMPTY": "Verify branding in email (logo, footer text, contact details) if applicable."
+  },
+  {
+    "__EMPTY": "Check that auto-response email is sent to the user (if configured)."
+  },
+  {
+    "__EMPTY": "Verify auto-response email content is correct and user-friendly."
+  },
+  {
+    "__EMPTY": "Confirm emails are not sent multiple times for a single submission."
+  },
+  {
+    "__EMPTY": "Verify email delivery (not landing in spam, correct sender domain)."
+  },
+  {
+    "__EMPTY": "Check email works across major email clients (Gmail, Outlook, etc.)."
+  },
+  {
+    "__EMPTY": "Verify proper error message is shown if email sending fails."
+  },
+  {
+    "__EMPTY": "Verify form data is not lost unexpectedly."
+  }
+]
