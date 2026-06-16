@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; font-size: 12.5px; line-height: 1.62; }
+
+  /* Each .page is one printed A4 sheet */
+  .page {
+    position: relative;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 22mm 20mm 20mm;
+    background: #ffffff;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* running brand line at the top of inner pages */
+  .runhead {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 18px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #94a3b8;
+  }
+  .runhead .brand { color: #4f46e5; }
+  .foot {
+    position: absolute; left: 20mm; right: 20mm; bottom: 12mm;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 7px;
+  }
+  .foot .site { color: #4f46e5; font-weight: 600; }
+
+  h1 { font-size: 30px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a; line-height: 1.15; }
+  h2 { font-size: 18px; font-weight: 800; color: #4338ca; margin: 0 0 9px; letter-spacing: -0.01em; }
+  h3 { font-size: 13.5px; font-weight: 800; color: #0f172a; margin: 14px 0 5px; }
+  p { margin: 0 0 10px; }
+  .lead { font-size: 13.5px; color: #334155; }
+  .muted { color: #64748b; }
+  b, strong { color: #0f172a; font-weight: 700; }
+
+  ul { list-style: none; margin: 0 0 12px; }
+  li { position: relative; padding-left: 18px; margin-bottom: 6px; }
+  li::before { content: ''; position: absolute; left: 3px; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: #6366f1; }
+  li.check::before { content: '✓'; background: none; color: #16a34a; font-weight: 900; top: 0; left: 0; font-size: 12px; }
+
+  .section-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px; background: #4f46e5; color: #fff;
+    font-weight: 800; font-size: 13px; margin-right: 10px;
+  }
+  .section-head { display: flex; align-items: center; margin-bottom: 12px; }
+  .section-head h2 { margin: 0; }
+
+  /* Title page */
+  .cover { display: flex; flex-direction: column; height: 253mm; }
+  .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
+  .logo-badge { width: 46px; height: 46px; border-radius: 12px; background: #4f46e5; display: flex; align-items: center; justify-content: center; }
+  .logo-badge svg { width: 26px; height: 26px; }
+  .logo-text .n { font-size: 17px; font-weight: 900; color: #0f172a; line-height: 1; }
+  .logo-text .s { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: #94a3b8; text-transform: uppercase; }
+  .cover .kicker { font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #6366f1; margin-bottom: 14px; }
+  .cover h1 { font-size: 40px; max-width: 90%; }
+  .cover .sub { font-size: 15px; color: #475569; margin-top: 16px; max-width: 85%; font-weight: 500; }
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; margin: 26px 0 30px; }
+  .chip { font-size: 11px; font-weight: 700; padding: 6px 13px; border-radius: 20px; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+  .chip.green { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+  .cover-intro { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px; font-size: 13px; color: #334155; }
+  .covers-box { margin-top: 22px; }
+  .covers-box h3 { color: #4338ca; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .covers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; }
+  .cover-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; border-top: 2px solid #4f46e5; padding-top: 12px; }
+  .cover-foot .org { font-size: 13px; font-weight: 800; color: #0f172a; }
+  .cover-foot .url { font-size: 12px; font-weight: 600; color: #4f46e5; }
+
+  /* Callout / cards */
+  .callout { background: #f5f3ff; border: 1px solid #ddd6fe; border-left: 4px solid #6366f1; border-radius: 10px; padding: 12px 15px; margin: 12px 0; font-size: 12px; }
+  .callout.amber { background: #fffbeb; border-color: #fde68a; border-left-color: #f59e0b; }
+  .callout.green { background: #ecfdf5; border-color: #a7f3d0; border-left-color: #10b981; }
+  .callout b { display: block; margin-bottom: 3px; }
+
+  /* 4-stage flow */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 6px; }
+  .stage { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 13px 12px; position: relative; }
+  .stage .sn { font-size: 10px; font-weight: 800; color: #6366f1; letter-spacing: 0.08em; }
+  .stage h4 { font-size: 12.5px; font-weight: 800; color: #0f172a; margin: 4px 0 4px; }
+  .stage p { font-size: 10.5px; color: #64748b; margin: 0; }
+  .stage .arrow { position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: #c7d2fe; font-size: 16px; font-weight: 900; z-index: 2; }
+  .stage:last-child .arrow { display: none; }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 11.5px; }
+  th { text-align: left; background: #f1f5f9; color: #475569; font-weight: 800; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eef2f6; vertical-align: top; }
+  td b { color: #4338ca; }
+
+  .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 6px 0 4px; }
+  .cat { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+  .cat .t { font-size: 12.5px; font-weight: 800; color: #0f172a; margin-bottom: 3px; }
+  .cat .d { font-size: 10.8px; color: #64748b; }
+
+  .sev { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 5px; margin-right: 4px; }
+  .sev.c { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .sev.m { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+  .sev.n { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+  .figcap { font-size: 10.5px; color: #94a3b8; font-style: italic; text-align: center; margin: 6px 0 14px; }
+  .diagram { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; }
+  .twocol { columns: 2; column-gap: 26px; }
+  .twocol li { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────── COVER ───────────────────────── -->
+<div class="page">
+  <div class="cover">
+    <div class="logo-row">
+      <div class="logo-badge">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z" fill="#fff" opacity="0.25"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="logo-text">
+        <div class="n">TestingAgent</div>
+        <div class="s">Website QA Platform</div>
+      </div>
+    </div>
+
+    <div class="kicker">Automated QA Workflow</div>
+    <h1>Website Testing Agent</h1>
+    <div class="sub">How the automated testing engine works — a plain-English guide for everyone. No technical background needed.</div>
+
+    <div class="chips">
+      <span class="chip green">Deterministic Engine</span>
+      <span class="chip green">No LLM · No API Keys</span>
+      <span class="chip">Headless Browser (Playwright)</span>
+      <span class="chip">Multi-Page Crawl</span>
+      <span class="chip">Evidence Screenshots</span>
+      <span class="chip">Excel / CSV Reports</span>
+    </div>
+
+    <div class="cover-intro">
+      This guide explains, in simple terms, how the Website Testing Agent works: how you enter a website address,
+      how it opens the site in a real browser and walks through it like a manual QA tester, how it runs a fixed set
+      of quality checks on every page and screen size, and how it reports each problem with a marked screenshot —
+      all without any AI, API keys, or usage limits.
+    </div>
+
+    <div class="covers-box">
+      <h3>What this guide covers</h3>
+      <div class="covers-grid">
+        <ul>
+          <li>What the Website Testing Agent is, in plain words</li>
+          <li>Why it is deterministic (and why that matters)</li>
+          <li>The end-to-end flow: URL in → bug report out</li>
+        </ul>
+        <ul>
+          <li>A step-by-step example of an audit running</li>
+          <li>The full test-case toolbox (10 categories)</li>
+          <li>How to read the report, evidence and exports</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cover-foot">
+      <span class="org">Kleza Solutions</span>
+      <span class="url">Website Testing Agent · v3.0</span>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────── PAGE 2 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">1</span><h2>What is the Website Testing Agent?</h2></div>
+  <p class="lead">
+    The Website Testing Agent is an automated quality-assurance tool for websites. Instead of a person manually
+    clicking through every page, checking spelling, resizing the browser, and writing bugs into a spreadsheet,
+    you simply <b>enter a website address and click “Run audit.”</b> The agent opens the site in a real browser
+    and inspects it the way a careful QA tester would.
+  </p>
+  <p>It answers practical questions automatically, for example:</p>
+  <ul>
+    <li>“Are there any broken links or broken images on the site?”</li>
+    <li>“Does the layout break on mobile, tablet, or small screens?”</li>
+    <li>“Are there spelling mistakes, missing page titles, or missing meta descriptions?”</li>
+    <li>“Do the contact forms validate input and keep the data when there’s an error?”</li>
+  </ul>
+  <p>
+    Every problem it finds becomes an <b>issue</b> with a severity, the exact page it’s on, steps to fix it, and a
+    <b>screenshot with the problem area circled in red</b>. The results are shown live, organised page-by-page, and can
+    be exported to Excel or CSV.
+  </p>
+
+  <div class="section-head" style="margin-top:22px"><span class="section-num">2</span><h2>Why it is “deterministic” (not AI)</h2></div>
+  <p>
+    Some tools hand the work to an AI model that decides what to do on the fly. This agent does the opposite: it runs a
+    <b>fixed, repeatable set of checks</b> written in code. The same website always produces the same results.
+  </p>
+  <div class="callout green">
+    <b>No LLM · No API keys · No rate limits</b>
+    Because there is no AI model in the loop, audits never stall waiting on a quota, cost nothing per run, and are
+    100% repeatable. What you see is measured directly from the page — never guessed.
+  </div>
+  <h3>Deterministic vs. AI-driven — at a glance</h3>
+  <table>
+    <tr><th>&nbsp;</th><th>Website Testing Agent</th><th>AI-driven tool</th></tr>
+    <tr><td><b>Decides steps</b></td><td>Fixed checklist in code</td><td>Model decides each run</td></tr>
+    <tr><td><b>Repeatable</b></td><td>Yes — identical every time</td><td>Can vary between runs</td></tr>
+    <tr><td><b>Needs API key / quota</b></td><td>No</td><td>Yes</td></tr>
+    <tr><td><b>Evidence</b></td><td>Measured values + screenshots</td><td>Often summarised text</td></tr>
+    <tr><td><b>Cost per audit</b></td><td>None</td><td>Per-token / per-call</td></tr>
+  </table>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+<!-- ───────────────────────── PAGE 3 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">3</span><h2>The end-to-end flow</h2></div>
+  <p>Every audit moves through four stages. You give it one thing — a URL — and it returns a complete bug report.</p>
+
+  <div class="flow">
+    <div class="stage"><div class="sn">1 · INPUT</div><h4>Enter a URL</h4><p>You type a website address and click Run audit.</p><span class="arrow">›</span></div>
+    <div class="stage"><div class="sn">2 · CRAWL</div><h4>Open &amp; explore</h4><p>A real browser loads the home page and follows the menu to inner pages.</p><span class="arrow">›</span></div>
+    <div class="stage"><div class="sn">3 · TEST</div><h4>Run the checks</h4><p>~60 test cases run on every page and at 6 screen sizes.</p><span class="arrow">›</span></div>
+    <div class="stage"><div class="sn">4 · REPORT</div><h4>Bug report</h4><p>Issues, marked screenshots, scores &amp; an Excel export.</p></div>
+  </div>
+
+  <h3>What powers each stage</h3>
+  <table>
+    <tr><th>Stage</th><th>What happens</th></tr>
+    <tr><td><b>Browser</b></td><td>A headless Chromium browser (via Playwright) renders the site exactly like a visitor’s browser — including JavaScript, images, and fonts.</td></tr>
+    <tr><td><b>Crawl</b></td><td>The agent reads the navigation menu and footer, then visits up to several internal pages so the whole site is checked, not just the home page.</td></tr>
+    <tr><td><b>Checks</b></td><td>Small, single-purpose checks measure the page directly: link status codes, font sizes, heading order, form behaviour, image sizes, layout at each resolution, and more.</td></tr>
+    <tr><td><b>Evidence</b></td><td>For each problem the agent scrolls to the element, draws a red box around it, and captures a focused screenshot as proof.</td></tr>
+  </table>
+
+  <div class="callout">
+    <b>Live progress</b>
+    As the audit runs you see a live log stream and a progress ring in the app — every page visited and every problem
+    found appears in real time over a streaming connection (Server-Sent Events).
+  </div>
+
+  <img class="diagram" src="architecture-diagram.png" alt="Website Testing Agent architecture and audit flow" />
+  <div class="figcap">Fig. The full architecture &amp; audit flow — input, engine, test-case actions, sources, and outputs.</div>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+<!-- ───────────────────────── PAGE 4 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">4</span><h2>How an audit runs (a real example)</h2></div>
+  <p>You watch each step appear live in the audit stream as the engine works through the site.</p>
+  <p class="muted" style="font-size:12px"><b>Example:</b> auditing a multi-page clinic website.</p>
+
+  <h3>Step by step</h3>
+  <ul>
+    <li><b>Branding &amp; header</b> — loads the home page, checks the logo is visible and links home, the menu exists, the favicon and page title are present.</li>
+    <li><b>Page crawl</b> — follows the menu to inner pages (About, Services, Contact…), checking each one has a title and a link back home.</li>
+    <li><b>Broken links &amp; anchors</b> — collects every link on every page and checks each returns a valid response — flagging 404s, dead links, and bad anchors.</li>
+    <li><b>Content, spelling &amp; fonts</b> — scans copy for spelling and repeated words, checks heading order, and flags inconsistent fonts.</li>
+    <li><b>Forms &amp; validation</b> — fills the contact form with test data, submits, and checks labels, tooltips, required-field errors, email validation, and that typed data survives an error.</li>
+    <li><b>Buttons, keyboard &amp; images</b> — checks buttons are a consistent size, not cut off or overlapping, keyboard-reachable, and that images load and have alt text.</li>
+    <li><b>Resolutions &amp; responsive</b> — resizes to 6 screen sizes (640×480 → 1920×1080, tablet, mobile) and checks for overflow, overlap, missing padding, and horizontal scrollbars.</li>
+    <li><b>Performance &amp; SEO</b> — measures load time per page, flags oversized images, and checks meta titles, descriptions, and H1 headings.</li>
+    <li><b>Mark evidence</b> — re-opens each affected page, draws a red box on the exact problem element, and captures a focused screenshot.</li>
+  </ul>
+
+  <div class="callout amber">
+    <b>Honest by design</b>
+    The agent only reports problems it can actually measure. Checks it genuinely can’t verify automatically (for example,
+    whether a confirmation email was delivered) are left as <b>pending</b> for a human — never guessed or marked as passed.
+  </div>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+<!-- ───────────────────────── PAGE 5 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">5</span><h2>The test-case toolbox</h2></div>
+  <p>The engine runs roughly <b>60 checks across 10 categories</b> on every audit. You never choose them — they all run automatically.</p>
+
+  <div class="cat-grid">
+    <div class="cat"><div class="t">Branding &amp; Header</div><div class="d">Logo visible &amp; links home, menu present, header contact info, favicon, page title on every page.</div></div>
+    <div class="cat"><div class="t">Navigation &amp; Links</div><div class="d">Menu items work, home link on every page, no broken links, external links open in a new tab, anchors resolve.</div></div>
+    <div class="cat"><div class="t">Content, Spelling &amp; Fonts</div><div class="d">Spelling, repeated words, no placeholder text, consistent fonts, heading sizes &amp; hierarchy, alignment, lists.</div></div>
+    <div class="cat"><div class="t">Forms &amp; Validation</div><div class="d">Labels, tooltips, required-field errors, email/phone validation, error spelling, data preserved on error, dropdowns.</div></div>
+    <div class="cat"><div class="t">Buttons &amp; UI Standards</div><div class="d">Consistent size &amp; style, text not cut off, not overlapped, keyboard-accessible.</div></div>
+    <div class="cat"><div class="t">Images &amp; Media</div><div class="d">Images load, no broken images, alt text present.</div></div>
+    <div class="cat"><div class="t">Social Media &amp; Footer</div><div class="d">Social links present &amp; valid, open in a new tab, footer links, privacy/terms, contact info &amp; copyright.</div></div>
+    <div class="cat"><div class="t">Responsive / Resolutions</div><div class="d">Layout intact at 6 screen sizes, no horizontal scroll, viewport meta tag, mobile &amp; tablet integrity.</div></div>
+    <div class="cat"><div class="t">Performance &amp; Usability</div><div class="d">Page loads within 3 seconds, images optimised, reasonable page weight.</div></div>
+    <div class="cat"><div class="t">SEO &amp; Meta Tags</div><div class="d">Optimised page title, meta description present, single H1 per page, search-friendly URLs.</div></div>
+  </div>
+
+  <div class="callout">
+    <b>Every page, every size</b>
+    Content, SEO and layout checks run on <b>each crawled page</b> — and layout is re-checked at every screen size — so a
+    problem on the “Services” page at mobile width is reported separately from the home page at desktop width.
+  </div>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+<!-- ───────────────────────── PAGE 6 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">6</span><h2>Evidence &amp; screenshot marking</h2></div>
+  <p>
+    Every problem that lives on a specific element gets a <b>focused screenshot</b> — the engine scrolls to the element,
+    draws a <b>red box</b> around it, and captures just that part of the page. No more hunting through a full-page image
+    to find what’s wrong.
+  </p>
+  <ul>
+    <li><b>Layout issues</b> are captured at the exact screen size where they break, with the overflowing or overlapping elements boxed.</li>
+    <li><b>Content, image, link, form, button and footer issues</b> are boxed on the element they affect.</li>
+    <li><b>Each issue gets its own screenshot</b> — no two issues share the same generic image.</li>
+    <li><b>Abstract issues</b> (e.g. “fonts differ across pages”, “page weight too heavy”) have no single spot to box, so they’re reported without a screenshot rather than a misleading one.</li>
+  </ul>
+
+  <div class="section-head" style="margin-top:20px"><span class="section-num">7</span><h2>Reading the results</h2></div>
+  <h3>Severity</h3>
+  <p>Every issue is rated so you can fix what matters first:</p>
+  <p>
+    <span class="sev c">Critical</span> breaks core function, SEO, or trust &nbsp;
+    <span class="sev m">Major</span> significant degradation &nbsp;
+    <span class="sev n">Minor</span> polish / best-practice
+  </p>
+  <h3>Where the results appear</h3>
+  <table>
+    <tr><th>View</th><th>What it shows</th></tr>
+    <tr><td><b>Dashboard</b></td><td>The 10 categories with a live pass / fail / warning status and progress bars.</td></tr>
+    <tr><td><b>Live audit stream</b></td><td>Real-time log of every page visited and problem found, with a progress ring.</td></tr>
+    <tr><td><b>Page-by-Page Report</b></td><td>Every audited page as a section — its issues grouped beneath it, sorted by severity, with a thumbnail.</td></tr>
+    <tr><td><b>Issue Tracker</b></td><td>A spreadsheet-style table of every issue: page, description, severity, status, assignee — editable.</td></tr>
+    <tr><td><b>Excel / CSV export</b></td><td>The full report, downloadable for sharing or record-keeping.</td></tr>
+  </table>
+  <div class="callout green">
+    <b>Your results are saved</b>
+    Audits are stored in the browser, so the report, issues and history survive a page refresh — no re-running needed.
+  </div>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+<!-- ───────────────────────── PAGE 7 ───────────────────────── -->
+<div class="page">
+  <div class="runhead"><span>Website Testing Agent — Automated QA Workflow</span><span class="brand">Kleza Solutions</span></div>
+
+  <div class="section-head"><span class="section-num">8</span><h2>Manual QA scenarios it covers</h2></div>
+  <p>The engine was built from a standard manual-QA test sheet. These real-world scenarios are now checked automatically:</p>
+  <ul class="twocol">
+    <li>Content is free of spelling &amp; grammar errors</li>
+    <li>Fonts are consistent as per the design</li>
+    <li>Text is properly aligned</li>
+    <li>Error messages are correct and match field labels</li>
+    <li>Tooltip text is present for every field</li>
+    <li>Fields are properly aligned</li>
+    <li>Adequate spacing between labels, rows &amp; errors</li>
+    <li>Buttons use a standard format and size</li>
+    <li>Clicking the logo loads the home page</li>
+    <li>A home link exists on every page</li>
+    <li>Social media links are valid</li>
+    <li>No broken links or images</li>
+    <li>The site works at multiple resolutions</li>
+    <li>Smooth navigation between pages</li>
+    <li>Pages load within 3 seconds</li>
+    <li>Scrollbar appears only when required</li>
+    <li>Filled data is preserved on a submit error</li>
+    <li>A title displays on every page</li>
+    <li>Fields &amp; buttons are keyboard-accessible</li>
+    <li>Dropdown text is not truncated by field size</li>
+  </ul>
+
+  <h3>In summary</h3>
+  <ul>
+    <li class="check"><b>Enter a URL</b> — no setup, dashboards, or training needed.</li>
+    <li class="check"><b>Trust the findings</b> — measured directly from the page, with a marked screenshot as proof.</li>
+    <li class="check"><b>Repeatable &amp; free to run</b> — no AI, no API keys, no usage limits.</li>
+    <li class="check"><b>Whole-site coverage</b> — every crawled page, at every screen size, reported page-by-page.</li>
+  </ul>
+
+  <div class="callout">
+    <b>In one line</b>
+    You enter a website address, a real browser walks the whole site and runs ~60 quality checks at six screen sizes,
+    and you get a clear, page-by-page bug report with marked-up evidence — exportable to Excel, with no AI in the loop.
+  </div>
+
+  <div class="cover-foot" style="margin-top:30px">
+    <span class="org">Kleza Solutions</span>
+    <span class="url">Website Testing Agent · Automated QA Workflow</span>
+  </div>
+
+  <div class="foot"><span>Kleza Solutions — Website Testing Agent</span><span class="site">testingagent · v3.0</span></div>
+</div>
+
+</body>
+</html>

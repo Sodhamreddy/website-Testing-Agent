@@ -51,6 +51,35 @@ const ReportPage: React.FC<ReportPageProps> = ({
     Object.entries(items).map(([item, status]) => ({ category, item, status }))
   ), [checklistStatus]);
 
+  // Group issues per page (strip " @ resolution" / " › section" suffixes) so the
+  // report reads page-by-page like a manual QA walkthrough.
+  const pageGroups = useMemo(() => {
+    const norm = (raw: string) => {
+      const clean = (raw || testedUrl).split(' @ ')[0].split(' › ')[0].trim();
+      try {
+        const u = new URL(clean.startsWith('http') ? clean : 'https://' + clean);
+        return u.origin + (u.pathname.replace(/\/$/, '') || '');
+      } catch { return clean || testedUrl; }
+    };
+    const map = new Map<string, TestIssue[]>();
+    for (const i of issues) {
+      const key = norm(i.affectedPage);
+      map.set(key, [...(map.get(key) ?? []), i]);
+    }
+    const sevRank = { Critical: 0, Major: 1, Minor: 2 } as const;
+    return Array.from(map.entries())
+      .map(([page, list]) => ({
+        page,
+        path: (() => { try { const u = new URL(page); return u.pathname === '' || u.pathname === '/' ? 'Home page' : decodeURIComponent(u.pathname); } catch { return page; } })(),
+        host: (() => { try { return new URL(page).hostname; } catch { return ''; } })(),
+        issues: [...list].sort((a, b) => sevRank[a.severity] - sevRank[b.severity]),
+        critical: list.filter(i => i.severity === 'Critical').length,
+        major: list.filter(i => i.severity === 'Major').length,
+        minor: list.filter(i => i.severity === 'Minor').length,
+      }))
+      .sort((a, b) => (b.critical * 100 + b.major * 10 + b.minor) - (a.critical * 100 + a.major * 10 + a.minor));
+  }, [issues, testedUrl]);
+
   const stats = {
     issues: issues.length,
     critical: issues.filter(i => i.severity === 'Critical').length,
@@ -124,6 +153,86 @@ const ReportPage: React.FC<ReportPageProps> = ({
             ))}
           </div>
         </section>
+
+        {/* ── Page-by-page report ── */}
+        {pageGroups.length > 0 && (
+          <section className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-[16px] font-black text-slate-900">Page-by-Page Report</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                  Every audited page with its own issues — like a manual QA walkthrough
+                </p>
+              </div>
+              <span className="text-[11px] font-black text-slate-500">{pageGroups.length} page(s)</span>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {pageGroups.map(group => (
+                <details key={group.page} className="group/page" open={group.critical > 0}>
+                  <summary className="px-6 py-4 flex items-center gap-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                    <span className="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 text-[10px] font-black transition-transform group-open/page:rotate-90">
+                      ›
+                    </span>
+                    {(() => {
+                      const shot = group.issues.find(i => i.screenshot)?.screenshot;
+                      return shot ? (
+                        <img
+                          src={shot}
+                          alt=""
+                          className="w-16 h-10 rounded-md object-cover object-top border border-slate-200 shrink-0 cursor-zoom-in"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); openScreenshot(shot); }}
+                        />
+                      ) : null;
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13.5px] font-black text-slate-900 truncate">{group.path}</p>
+                      <p className="text-[11px] font-semibold text-slate-400 truncate">{group.host}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {group.critical > 0 && (
+                        <span className="px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black">
+                          {group.critical} Critical
+                        </span>
+                      )}
+                      {group.major > 0 && (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black">
+                          {group.major} Major
+                        </span>
+                      )}
+                      {group.minor > 0 && (
+                        <span className="px-2.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[10px] font-black">
+                          {group.minor} Minor
+                        </span>
+                      )}
+                      <span className="text-[11px] font-bold text-slate-400 ml-1">{group.issues.length} issue(s)</span>
+                    </div>
+                  </summary>
+
+                  <div className="px-6 pb-5 space-y-2.5">
+                    {group.issues.map(issue => (
+                      <div key={issue.id} className="flex items-start gap-3 bg-slate-50/80 border border-slate-100 rounded-xl px-4 py-3">
+                        <span className={`mt-0.5 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider shrink-0 ${severityStyle[issue.severity]}`}>
+                          {issue.severity}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12.5px] font-black text-slate-800 leading-snug">{issue.name}</p>
+                          <p className="text-[11.5px] text-slate-500 font-medium leading-relaxed mt-1">{issue.description}</p>
+                          {issue.details?.length ? (
+                            <p className="text-[11px] text-slate-400 font-semibold mt-1 break-all">
+                              ↳ {issue.details[0]}{issue.details.length > 1 ? `  (+${issue.details.length - 1} more in Bugs With Evidence below)` : ''}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0 mt-0.5">{issue.browser}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <section className="xl:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">

@@ -6,14 +6,15 @@ import {
   AlertTriangle, Filter, ChevronRight, Image,
 } from 'lucide-react';
 import type { TestingIssue } from '../types';
+import { exportIssueLogToExcel } from '../utils/export';
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const TEAM_MEMBERS = ['Sodham', 'Shilpa', 'AI Agent', 'QA Team', 'Dev Team'];
-const STATUS_CYCLE  = ['open', 'in progress', 'verified', 'fixed', 'watching'];
-const STATUS_OPTIONS = STATUS_CYCLE;
+const TEAM_MEMBERS    = ['Sodham', 'Shilpa', 'AI Agent', 'QA Team', 'Dev Team'];
+const STATUS_CYCLE    = ['open', 'in progress', 'verified', 'fixed', 'watching'];
+const STATUS_OPTIONS  = STATUS_CYCLE;
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'] as const;
-const TYPE_OPTIONS = ['UI', 'Functionality', 'Performance', 'Security', 'Content', 'Accessibility', 'SEO', 'Auto Audit'];
-const DEVICE_OPTIONS = ['website'];
+const TYPE_OPTIONS    = ['UI', 'Functionality', 'Performance', 'Content', 'Accessibility', 'SEO', 'Auto Audit'];
+const DEVICE_OPTIONS  = ['website'];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getNextTcId(issues: TestingIssue[]): string {
@@ -31,27 +32,45 @@ function nextStatus(current: string): string {
 
 function statusCfg(s: string) {
   const key = s.toLowerCase();
-  if (key === 'verified' || key === 'fixed')  return { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', ring: 'hover:ring-emerald-300' };
-  if (key === 'in progress')                  return { bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500',    ring: 'hover:ring-blue-300' };
-  if (key === 'watching')                     return { bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-500',  ring: 'hover:ring-violet-300' };
-  return                                             { bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500',   ring: 'hover:ring-amber-300' };
+  if (key === 'verified' || key === 'fixed') return { bg: '#f0fdf4', text: '#16a34a', dot: '#22c55e', border: '#bbf7d0', ring: 'rgba(34,197,94,0.2)' };
+  if (key === 'in progress')                 return { bg: '#eff6ff', text: '#2563eb', dot: '#3b82f6', border: '#bfdbfe', ring: 'rgba(59,130,246,0.2)' };
+  if (key === 'watching')                    return { bg: '#f5f3ff', text: '#7c3aed', dot: '#8b5cf6', border: '#ddd6fe', ring: 'rgba(139,92,246,0.2)' };
+  return                                            { bg: '#fffbeb', text: '#d97706', dot: '#f59e0b', border: '#fde68a', ring: 'rgba(245,158,11,0.2)' };
 }
 
 function priorityStripe(p: string) {
-  if (p === 'High')   return '#f43f5e';
+  if (p === 'High')   return '#ef4444';
   if (p === 'Medium') return '#f59e0b';
-  return '#60a5fa';
+  return '#3b82f6';
 }
 
-function priorityBadge(p: string) {
-  if (p === 'High')   return 'bg-rose-100 text-rose-700';
-  if (p === 'Medium') return 'bg-amber-100 text-amber-700';
-  return 'bg-blue-100 text-blue-700';
+function priorityCfg(p: string) {
+  if (p === 'High')   return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' };
+  if (p === 'Medium') return { bg: '#fffbeb', text: '#d97706', border: '#fde68a' };
+  return                     { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' };
 }
 
 function domainOf(url: string) {
   try { return new URL(url.startsWith('http') ? url : 'https://' + url).hostname; }
   catch { return url; }
+}
+
+/**
+ * Split an affected-page string like
+ * "https://site.com/services/ @ Mobile (375px)" or "https://site.com › Header"
+ * into { host, path, suffix } so long URLs never overflow the table cell.
+ */
+function pageParts(raw: string) {
+  const suffix = raw.includes(' @ ') ? raw.split(' @ ')[1].trim()
+    : raw.includes(' › ') ? raw.split(' › ')[1].trim() : '';
+  const clean = raw.split(' @ ')[0].split(' › ')[0].trim();
+  try {
+    const u = new URL(clean.startsWith('http') ? clean : 'https://' + clean);
+    const path = u.pathname === '/' || u.pathname === '' ? 'Home page' : decodeURIComponent(u.pathname).replace(/\/$/, '');
+    return { host: u.hostname, path, suffix, full: raw };
+  } catch {
+    return { host: clean, path: '', suffix, full: raw };
+  }
 }
 
 function openScreenshot(src: string) {
@@ -60,8 +79,7 @@ function openScreenshot(src: string) {
     if (win) {
       win.document.write(
         `<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh">` +
-        `<img src="${src}" style="max-width:100%;max-height:100vh;display:block;border-radius:8px"/>` +
-        `</body></html>`
+        `<img src="${src}" style="max-width:100%;max-height:100vh;display:block;border-radius:8px"/></body></html>`
       );
       win.document.close();
     }
@@ -77,47 +95,40 @@ const EMPTY: Omit<TestingIssue, 'testCaseId'> = {
   screenshot: '',
 };
 
-// ── Screenshot preview (with fallback page-info card) ────────────────────────
+// ── Screenshot preview ───────────────────────────────────────────────────────
 const ScreenshotPreview: React.FC<{ src: string; url?: string; title?: string; compact?: boolean }> = ({
   src, url = '', title = '', compact = false,
 }) => {
   const [failed, setFailed] = useState(false);
   const domain = domainOf(url);
-
   if (!src) return null;
-
   if (failed) {
     return (
       <a href={url} target="_blank" rel="noopener noreferrer"
-        className={`flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-2.5 hover:border-indigo-300 transition-colors ${compact ? 'mt-2' : 'mt-3'}`}
+        className={`flex items-center gap-2.5 rounded-xl p-2.5 transition-colors ${compact ? 'mt-2' : 'mt-3'}`}
+        style={{ background: '#f9fafb', border: '1px solid #e5e7eb' }}
       >
         <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" className="w-5 h-5 rounded shrink-0" />
         <div className="min-w-0">
-          <p className="text-[11px] font-bold text-slate-700 truncate">{title || domain}</p>
-          <p className="text-[10px] text-slate-400 truncate">{domain}</p>
+          <p className="text-[11px] font-semibold text-gray-700 truncate">{title || domain}</p>
+          <p className="text-[10px] text-gray-400 truncate">{domain}</p>
         </div>
-        <ExternalLink className="w-3 h-3 text-slate-400 ml-auto shrink-0" />
+        <ExternalLink className="w-3 h-3 text-gray-400 ml-auto shrink-0" />
       </a>
     );
   }
-
   return (
     <div
       onClick={() => openScreenshot(src)}
-      className={`block relative rounded-xl overflow-hidden border border-slate-200 group/ss cursor-pointer ${compact ? 'mt-2' : 'mt-3'}`}
-      style={{ maxHeight: compact ? 72 : 200 }}
+      className={`relative rounded-xl overflow-hidden cursor-pointer group/ss ${compact ? 'mt-2' : 'mt-3'}`}
+      style={{ maxHeight: compact ? 72 : 200, border: '1px solid #e5e7eb' }}
     >
-      <img
-        src={src}
-        alt="Screenshot"
-        className="w-full object-cover object-top"
-        style={{ maxHeight: compact ? 72 : 200 }}
-        onError={() => setFailed(true)}
-      />
-      <div className="absolute inset-0 bg-slate-900/0 group-hover/ss:bg-slate-900/25 flex items-center justify-center transition-all">
+      <img src={src} alt="Screenshot" className="w-full object-cover object-top"
+        style={{ maxHeight: compact ? 72 : 200 }} onError={() => setFailed(true)} />
+      <div className="absolute inset-0 bg-gray-900/0 group-hover/ss:bg-gray-900/25 flex items-center justify-center transition-all">
         <div className="opacity-0 group-hover/ss:opacity-100 transition-opacity bg-white/90 backdrop-blur rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
-          <ExternalLink className="w-3 h-3 text-slate-600" />
-          <span className="text-[10px] font-bold text-slate-700">Open full size</span>
+          <ExternalLink className="w-3 h-3 text-gray-600" />
+          <span className="text-[10px] font-bold text-gray-700">Open full size</span>
         </div>
       </div>
     </div>
@@ -132,48 +143,82 @@ interface ModalProps {
   onClose: () => void;
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 14px',
+  background: '#f9fafb',
+  border: '1.5px solid #e5e7eb',
+  borderRadius: 9,
+  fontSize: 13,
+  color: '#111827',
+  outline: 'none',
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+  fontFamily: 'inherit',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em',
+  color: '#9ca3af',
+  marginBottom: 6,
+};
+
 const IssueModal: React.FC<ModalProps> = ({ mode, issue, onSave, onClose }) => {
   const [form, setForm] = useState<TestingIssue>({ ...issue });
   const set = (k: keyof TestingIssue, v: string) => setForm(p => ({ ...p, [k]: v }));
-
-  const inp = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 transition-all';
-  const lbl = 'block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5';
-
-  const sc = statusCfg(form.status);
 
   return (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-[6px] z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
         onClick={e => e.target === e.currentTarget && onClose()}
       >
         <motion.div
-          initial={{ scale: 0.96, opacity: 0, y: 24 }}
+          initial={{ scale: 0.97, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.96, opacity: 0, y: 12 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-          className="bg-white rounded-[28px] shadow-[0_32px_80px_rgba(0,0,0,0.18)] w-full max-w-3xl max-h-[92vh] overflow-y-auto"
+          exit={{ scale: 0.97, opacity: 0, y: 10 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="bg-white w-full max-w-3xl max-h-[92vh] overflow-y-auto custom-scrollbar"
+          style={{ borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.2)' }}
         >
-          {/* Modal Header */}
-          <div className="sticky top-0 bg-white/96 backdrop-blur border-b border-slate-100 px-8 py-5 flex items-center justify-between rounded-t-[28px] z-10">
+          {/* Header */}
+          <div
+            className="sticky top-0 z-10 flex items-center justify-between px-8 py-5"
+            style={{
+              background: 'rgba(255,255,255,0.97)',
+              borderBottom: '1px solid #f3f4f6',
+              backdropFilter: 'blur(8px)',
+              borderRadius: '20px 20px 0 0',
+            }}
+          >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm ${mode === 'create' ? 'bg-indigo-600' : 'bg-slate-100'}`}>
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: mode === 'create' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#f3f4f6' }}
+              >
                 {mode === 'create'
-                  ? <Plus className="w-5 h-5 text-white" />
-                  : <Edit2 className="w-4.5 h-4.5 text-slate-600" style={{ width: 18, height: 18 }} />}
+                  ? <Plus className="w-4 h-4 text-white" />
+                  : <Edit2 style={{ width: 16, height: 16, color: '#6b7280' }} />}
               </div>
               <div>
-                <h2 className="text-[17px] font-[900] text-slate-900 tracking-tight">
+                <h2 className="text-[16px] font-bold text-gray-900">
                   {mode === 'create' ? 'Log New Issue' : `Edit — ${issue.testCaseId}`}
                 </h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                <p className="section-label mt-0.5">
                   {mode === 'create' ? 'Create a new QA test case' : 'Update issue details & assignment'}
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <X className="w-5 h-5 text-slate-400" />
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl transition-colors hover:bg-gray-100"
+            >
+              <X className="w-4 h-4 text-gray-400" />
             </button>
           </div>
 
@@ -181,104 +226,119 @@ const IssueModal: React.FC<ModalProps> = ({ mode, issue, onSave, onClose }) => {
             onSubmit={e => { e.preventDefault(); if (form.pageUrl.trim() && form.description.trim()) onSave(form); }}
             className="p-8 space-y-6"
           >
-            {/* Section: Basic Info */}
+            {/* Basic Info */}
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-3">
                 <div>
-                  <label className={lbl}>Case ID</label>
-                  <input value={form.testCaseId} readOnly className={inp + ' bg-slate-100 text-slate-500 cursor-not-allowed'} />
+                  <label style={labelStyle}>Case ID</label>
+                  <input value={form.testCaseId} readOnly
+                    style={{ ...inputStyle, background: '#f3f4f6', color: '#9ca3af', cursor: 'not-allowed' }} />
                 </div>
                 <div className="col-span-2">
-                  <label className={lbl}>Page / Section *</label>
-                  <input value={form.pageUrl} onChange={e => set('pageUrl', e.target.value)} placeholder="e.g. Home Page / Contact Us" required className={inp} />
+                  <label style={labelStyle}>Page / Section *</label>
+                  <input value={form.pageUrl} onChange={e => set('pageUrl', e.target.value)}
+                    placeholder="e.g. Home Page / Contact Us" required style={inputStyle}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                 </div>
                 <div>
-                  <label className={lbl}>Scope</label>
-                  <select value={form.deviceType} onChange={e => set('deviceType', e.target.value)} className={inp + ' cursor-pointer'}>
+                  <label style={labelStyle}>Scope</label>
+                  <select value={form.deviceType} onChange={e => set('deviceType', e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }}>
                     {DEVICE_OPTIONS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
                   </select>
                 </div>
               </div>
-
               <div>
-                <label className={lbl}>Issue Description *</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => set('description', e.target.value)}
-                  placeholder={"Brief summary of the issue.\n1. Step one\n2. Step two\n3. Expected result vs actual result"}
+                <label style={labelStyle}>Issue Description *</label>
+                <textarea value={form.description} onChange={e => set('description', e.target.value)}
+                  placeholder={"Brief summary of the issue.\n1. Step one\n2. Step two\n3. Expected vs actual result"}
                   required rows={5}
-                  className={inp + ' resize-y'}
-                />
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                  onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                  onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
               </div>
             </div>
 
-            {/* Section: Classification */}
-            <div className="pt-1 border-t border-slate-50">
-              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3">Classification</p>
+            {/* Classification */}
+            <div style={{ paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+              <p className="section-label mb-3">Classification</p>
               <div className="grid grid-cols-4 gap-3">
+                {[
+                  { lbl: 'Priority', field: 'priority', opts: PRIORITY_OPTIONS },
+                  { lbl: 'Type',     field: 'type',     opts: TYPE_OPTIONS },
+                  { lbl: 'Status',   field: 'status',   opts: STATUS_OPTIONS },
+                ].map(({ lbl, field, opts }) => (
+                  <div key={field}>
+                    <label style={labelStyle}>{lbl}</label>
+                    <select
+                      value={form[field as keyof TestingIssue] as string}
+                      onChange={e => set(field as keyof TestingIssue, e.target.value)}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      {(opts as readonly string[]).map(o => (
+                        <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
                 <div>
-                  <label className={lbl}>Priority</label>
-                  <select value={form.priority} onChange={e => set('priority', e.target.value as TestingIssue['priority'])} className={inp + ' cursor-pointer'}>
-                    {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={lbl}>Type</label>
-                  <select value={form.type} onChange={e => set('type', e.target.value)} className={inp + ' cursor-pointer'}>
-                    {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={lbl}>Status</label>
-                  <select value={form.status} onChange={e => set('status', e.target.value)} className={inp + ' cursor-pointer'}>
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={lbl}>Version</label>
-                  <input value={form.version || ''} onChange={e => set('version', e.target.value)} placeholder="v1.0" className={inp} />
+                  <label style={labelStyle}>Version</label>
+                  <input value={form.version || ''} onChange={e => set('version', e.target.value)}
+                    placeholder="v1.0" style={inputStyle}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                 </div>
               </div>
             </div>
 
-            {/* Section: Assignment */}
-            <div className="pt-1 border-t border-slate-50">
-              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3">Assignment</p>
+            {/* Assignment */}
+            <div style={{ paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+              <p className="section-label mb-3">Assignment</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={lbl}>Logged By</label>
-                  <input value={form.loggedBy} onChange={e => set('loggedBy', e.target.value)} placeholder="Name" className={inp} />
+                  <label style={labelStyle}>Logged By</label>
+                  <input value={form.loggedBy} onChange={e => set('loggedBy', e.target.value)}
+                    placeholder="Name" style={inputStyle}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                 </div>
                 <div>
-                  <label className={lbl}>Assigned To</label>
-                  <select value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)} className={inp + ' cursor-pointer'}>
+                  <label style={labelStyle}>Assigned To</label>
+                  <select value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }}>
                     <option value="">— Select member —</option>
                     {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>Reported On</label>
-                  <input value={form.reportedOn} onChange={e => set('reportedOn', e.target.value)} placeholder="MM/DD/YYYY" className={inp} />
+                  <label style={labelStyle}>Reported On</label>
+                  <input value={form.reportedOn} onChange={e => set('reportedOn', e.target.value)}
+                    placeholder="MM/DD/YYYY" style={inputStyle}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                 </div>
               </div>
             </div>
 
-            {/* Section: Notes & Screenshot */}
-            <div className="pt-1 border-t border-slate-50">
-              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3">Notes & Evidence</p>
+            {/* Notes & Evidence */}
+            <div style={{ paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+              <p className="section-label mb-3">Notes & Evidence</p>
               <div className="space-y-3">
                 <div>
-                  <label className={lbl}>Remarks</label>
-                  <textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} placeholder="Additional notes, context, or observations…" rows={2} className={inp + ' resize-y'} />
+                  <label style={labelStyle}>Remarks</label>
+                  <textarea value={form.remarks} onChange={e => set('remarks', e.target.value)}
+                    placeholder="Additional notes, context, or observations…" rows={2}
+                    style={{ ...inputStyle, resize: 'vertical' }}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                 </div>
                 <div>
-                  <label className={lbl}>Screenshot URL</label>
-                  <input
-                    value={form.screenshot || ''}
-                    onChange={e => set('screenshot', e.target.value)}
-                    placeholder="Paste image URL (or auto-filled from scan)"
-                    className={inp}
-                  />
+                  <label style={labelStyle}>Screenshot URL</label>
+                  <input value={form.screenshot || ''} onChange={e => set('screenshot', e.target.value)}
+                    placeholder="Paste image URL (or auto-filled from scan)" style={inputStyle}
+                    onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+                    onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }} />
                   {form.screenshot && (
                     <ScreenshotPreview src={form.screenshot} url={form.pageUrl} title={form.description.split('\n')[0]} />
                   )}
@@ -287,11 +347,31 @@ const IssueModal: React.FC<ModalProps> = ({ mode, issue, onSave, onClose }) => {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button type="button" onClick={onClose} className="px-6 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-600 hover:bg-slate-100 transition-all">
+            <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid #f3f4f6' }}>
+              <button type="button" onClick={onClose}
+                style={{
+                  padding: '10px 20px', background: '#f9fafb', border: '1.5px solid #e5e7eb',
+                  borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#f9fafb')}
+              >
                 Cancel
               </button>
-              <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl text-[13px] font-bold hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-200/60 flex items-center gap-2">
+              <button type="submit"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '10px 22px',
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  color: '#fff', border: 'none', borderRadius: 9,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
                 <CheckCircle2 className="w-4 h-4" />
                 {mode === 'create' ? 'Create Issue' : 'Save Changes'}
               </button>
@@ -310,10 +390,10 @@ interface TestingViewPageProps {
 }
 
 const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManualIssuesChange }) => {
-  const [search, setSearch]            = useState('');
-  const [statusFilter, setStatusF]     = useState('all');
-  const [priorityFilter, setPriorityF] = useState('all');
-  const [modal, setModal]              = useState<{ mode: 'create' | 'edit'; issue: TestingIssue } | null>(null);
+  const [search,        setSearch]   = useState('');
+  const [statusFilter,  setStatusF]  = useState('all');
+  const [priorityFilter,setPriorityF]= useState('all');
+  const [modal, setModal]            = useState<{ mode: 'create' | 'edit'; issue: TestingIssue } | null>(null);
 
   const filtered = useMemo(() => manualIssues.filter(i => {
     const q = search.toLowerCase();
@@ -349,9 +429,7 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
   };
 
   const handleQuickStatus = (id: string, current: string) => {
-    onManualIssuesChange(
-      manualIssues.map(i => i.testCaseId === id ? { ...i, status: nextStatus(current) } : i)
-    );
+    onManualIssuesChange(manualIssues.map(i => i.testCaseId === id ? { ...i, status: nextStatus(current) } : i));
   };
 
   const handleExport = () => {
@@ -373,83 +451,157 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
   };
 
   const statCards = [
-    { label: 'Total Issues',   value: stats.total,      bg: 'bg-white',       border: 'border-slate-200', num: 'text-slate-900',   Icon: ClipboardList, ic: 'bg-slate-100 text-slate-500' },
-    { label: 'Open',           value: stats.open,        bg: 'bg-amber-50',    border: 'border-amber-200', num: 'text-amber-700',   Icon: AlertCircle,   ic: 'bg-amber-100 text-amber-600' },
-    { label: 'In Progress',    value: stats.inProgress,  bg: 'bg-blue-50',     border: 'border-blue-200',  num: 'text-blue-700',    Icon: Clock,         ic: 'bg-blue-100 text-blue-600' },
-    { label: 'Verified / Fixed', value: stats.verified,  bg: 'bg-emerald-50',  border: 'border-emerald-200', num: 'text-emerald-700', Icon: CheckCircle2, ic: 'bg-emerald-100 text-emerald-600' },
-    { label: 'High Priority',  value: stats.high,        bg: 'bg-rose-50',     border: 'border-rose-200',  num: 'text-rose-700',    Icon: AlertTriangle, ic: 'bg-rose-100 text-rose-500' },
+    { label: 'Total Issues',     value: stats.total,      bg: '#ffffff',  border: '#e5e7eb', numColor: '#111827', Icon: ClipboardList, iconBg: '#f9fafb',  iconColor: '#6b7280' },
+    { label: 'Open',             value: stats.open,        bg: '#fffbeb',  border: '#fde68a', numColor: '#d97706', Icon: AlertCircle,   iconBg: '#fef3c7',  iconColor: '#d97706' },
+    { label: 'In Progress',      value: stats.inProgress,  bg: '#eff6ff',  border: '#bfdbfe', numColor: '#2563eb', Icon: Clock,         iconBg: '#dbeafe',  iconColor: '#3b82f6' },
+    { label: 'Verified / Fixed', value: stats.verified,    bg: '#f0fdf4',  border: '#bbf7d0', numColor: '#16a34a', Icon: CheckCircle2,  iconBg: '#dcfce7',  iconColor: '#22c55e' },
+    { label: 'High Priority',    value: stats.high,        bg: '#fef2f2',  border: '#fecaca', numColor: '#dc2626', Icon: AlertTriangle, iconBg: '#fee2e2',  iconColor: '#ef4444' },
   ];
 
   return (
-    <div className="h-full overflow-hidden flex flex-col" style={{ background: '#f6f8fb' }}>
+    <div className="h-full overflow-hidden flex flex-col" style={{ background: '#f4f5f7' }}>
 
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-100 px-8 pt-6 pb-5 shrink-0">
-        <div className="flex items-center justify-between mb-6">
+      <div style={{ background: '#ffffff', borderBottom: '1px solid #e5e7eb', padding: '20px 28px 16px', flexShrink: 0 }}>
+        <div className="flex items-center justify-between mb-5">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-300/50">
-                <ClipboardList className="text-white" style={{ width: 18, height: 18 }} />
+            <div className="flex items-center gap-3 mb-0.5">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}
+              >
+                <ClipboardList style={{ width: 16, height: 16, color: '#fff' }} />
               </div>
-              <h1 className="text-[22px] font-[900] text-slate-900 tracking-tight">Issue Tracker</h1>
+              <h1 className="text-[20px] font-bold text-gray-900 tracking-tight">Issue Tracker</h1>
             </div>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.14em] pl-12">
-              QA Test Cases · Create · Edit · Assign
-            </p>
+            <p className="section-label ml-11">QA Test Cases · Create · Edit · Assign</p>
           </div>
-          <div className="flex gap-2.5">
-            <button onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[12px] font-bold text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm">
-              <Download style={{ width: 14, height: 14 }} /> Export CSV
+          <div className="flex gap-2">
+            <button
+              onClick={() => { if (window.confirm('Clear all issues?')) onManualIssuesChange([]); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', background: '#fff', border: '1.5px solid #fecaca',
+                borderRadius: 9, fontSize: 12, fontWeight: 600, color: '#dc2626', cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fef2f2')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            >
+              <Trash2 style={{ width: 13, height: 13 }} /> Clear All
             </button>
-            <button onClick={openCreate}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[12px] font-black uppercase tracking-wider hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-300/40">
-              <Plus style={{ width: 16, height: 16 }} /> Create Issue
+            <button
+              onClick={handleExport}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', background: '#fff', border: '1.5px solid #e5e7eb',
+                borderRadius: 9, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            >
+              <Download style={{ width: 13, height: 13 }} /> Export CSV
+            </button>
+            <button
+              onClick={() => exportIssueLogToExcel(manualIssues)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', background: '#fff', border: '1.5px solid #a7f3d0',
+                borderRadius: 9, fontSize: 12, fontWeight: 600, color: '#047857', cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#ecfdf5')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            >
+              <Download style={{ width: 13, height: 13 }} /> Export Excel
+            </button>
+            <button
+              onClick={openCreate}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '8px 18px',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff', border: 'none', borderRadius: 9,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+              }}
+            >
+              <Plus style={{ width: 15, height: 15 }} /> Create Issue
             </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-5 gap-3 mb-5">
+        <div className="grid grid-cols-5 gap-3 mb-4">
           {statCards.map(s => (
-            <div key={s.label} className={`${s.bg} border ${s.border} rounded-2xl p-4 flex items-center justify-between group`}>
+            <div
+              key={s.label}
+              className="rounded-xl p-4 flex items-center justify-between"
+              style={{ background: s.bg, border: `1px solid ${s.border}` }}
+            >
               <div>
-                <div className={`text-[30px] font-[900] leading-none mb-1.5 ${s.num}`}>{s.value}</div>
-                <div className="text-[9.5px] font-black uppercase tracking-[0.12em] text-slate-400">{s.label}</div>
+                <div className="stat-number" style={{ color: s.numColor }}>{s.value}</div>
+                <div className="section-label mt-1">{s.label}</div>
               </div>
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${s.ic}`}>
-                <s.Icon style={{ width: 18, height: 18 }} />
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: s.iconBg }}
+              >
+                <s.Icon style={{ width: 17, height: 17, color: s.iconColor }} />
               </div>
             </div>
           ))}
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" style={{ width: 14, height: 14 }} />
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+              style={{ width: 13, height: 13 }}
+            />
             <input
               type="text" placeholder="Search ID, page, description, assignee…"
               value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12.5px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 focus:border-indigo-400 transition-all"
+              style={{
+                width: '100%', paddingLeft: 36, paddingRight: 14,
+                paddingTop: 9, paddingBottom: 9,
+                background: '#f9fafb', border: '1.5px solid #e5e7eb',
+                borderRadius: 9, fontSize: 12.5, color: '#374151', outline: 'none',
+                transition: 'border-color 0.15s, box-shadow 0.15s', fontFamily: 'inherit',
+              }}
+              onFocus={e => { e.target.style.borderColor = '#6366f1'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.1)'; }}
+              onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
             />
           </div>
-          <Filter className="text-slate-400 ml-0.5" style={{ width: 14, height: 14 }} />
-          <select value={statusFilter} onChange={e => setStatusF(e.target.value)}
-            className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-600 focus:outline-none focus:border-indigo-400 cursor-pointer transition-all">
-            <option value="all">All Status</option>
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-          </select>
-          <select value={priorityFilter} onChange={e => setPriorityF(e.target.value)}
-            className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[12px] font-bold text-slate-600 focus:outline-none focus:border-indigo-400 cursor-pointer transition-all">
-            <option value="all">All Priority</option>
-            {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+          <Filter style={{ width: 13, height: 13, color: '#9ca3af' }} />
+          {[
+            { value: statusFilter,   setter: setStatusF,   options: [['all', 'All Status'], ...STATUS_OPTIONS.map(s => [s, s.charAt(0).toUpperCase() + s.slice(1)])] },
+            { value: priorityFilter, setter: setPriorityF, options: [['all', 'All Priority'], ...PRIORITY_OPTIONS.map(p => [p, p])] },
+          ].map(({ value, setter, options }, idx) => (
+            <select
+              key={idx}
+              value={value}
+              onChange={e => setter(e.target.value)}
+              style={{
+                padding: '9px 12px', background: '#f9fafb', border: '1.5px solid #e5e7eb',
+                borderRadius: 9, fontSize: 12, fontWeight: 600, color: '#374151',
+                cursor: 'pointer', outline: 'none', fontFamily: 'inherit',
+              }}
+            >
+              {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          ))}
           <AnimatePresence>
             {filtered.length !== manualIssues.length && (
               <motion.span
                 initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
-                className="text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg"
+                style={{
+                  fontSize: 11, fontWeight: 700, color: '#6366f1',
+                  background: '#eef2ff', border: '1px solid #c7d2fe',
+                  padding: '3px 10px', borderRadius: 20,
+                }}
               >
                 {filtered.length} / {manualIssues.length}
               </motion.span>
@@ -459,186 +611,350 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
       </div>
 
       {/* ── Table area ── */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-5 custom-scrollbar">
         {filtered.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto mb-5 border border-slate-100 shadow-sm">
-                <ClipboardList style={{ width: 32, height: 32 }} className="text-slate-200" />
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+              >
+                <ClipboardList style={{ width: 28, height: 28, color: '#d1d5db' }} />
               </div>
-              <h3 className="text-[18px] font-[900] text-slate-800 mb-2">
+              <h3 className="text-[17px] font-bold text-gray-800 mb-1.5">
                 {manualIssues.length === 0 ? 'No issues yet' : 'No matches'}
               </h3>
-              <p className="text-[13px] text-slate-400 mb-6">
+              <p className="text-sm text-gray-400 mb-5">
                 {manualIssues.length === 0
                   ? 'Run a scan to auto-detect issues, or create one manually'
                   : 'Try adjusting your search or filters'}
               </p>
               {manualIssues.length === 0 && (
                 <button onClick={openCreate}
-                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[13px] font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200/60">
+                  style={{
+                    padding: '10px 22px',
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    color: '#fff', border: 'none', borderRadius: 9,
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                  }}
+                >
                   + Create First Issue
                 </button>
               )}
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+          >
             <div className="overflow-x-auto">
-              <table className="w-full text-left" style={{ borderCollapse: 'collapse', minWidth: 1220 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
+                  <tr style={{ background: '#f9fafb', borderBottom: '2px solid #f3f4f6' }}>
                     <th style={{ width: 4, padding: 0 }} />
                     {['ID', 'Page / Section', 'Issue Description', 'Scope', 'Status', 'Priority / Type', 'Assignment', 'Date', ''].map((h, i) => (
-                      <th key={i} className="px-4 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                      <th
+                        key={i}
+                        style={{
+                          padding: '12px 16px',
+                          fontSize: 10, fontWeight: 700, color: '#9ca3af',
+                          textTransform: 'uppercase', letterSpacing: '0.1em',
+                          textAlign: 'left', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((issue, idx) => {
-                    const sc = statusCfg(issue.status);
+                    const sc   = statusCfg(issue.status);
+                    const pc   = priorityCfg(issue.priority);
                     return (
                       <motion.tr
                         key={issue.testCaseId}
-                        initial={{ opacity: 0, y: 6 }}
+                        initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.016 }}
-                        className="group hover:bg-slate-50/70 transition-colors"
-                        style={{ borderBottom: '1px solid #f1f5f9' }}
+                        transition={{ delay: idx * 0.014 }}
+                        style={{ borderBottom: '1px solid #f3f4f6' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        className="group transition-colors"
                       >
                         {/* Priority stripe */}
                         <td style={{ width: 4, padding: 0, background: priorityStripe(issue.priority) }} />
 
                         {/* ID */}
-                        <td className="px-4 py-4 align-top whitespace-nowrap">
-                          <span className={`inline-flex text-[11px] font-black px-2.5 py-1 rounded-lg ${
-                            issue.testCaseId.startsWith('AI_')
-                              ? 'bg-indigo-50 text-indigo-600 border border-indigo-100'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}>
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              fontSize: 11, fontWeight: 700,
+                              padding: '3px 9px', borderRadius: 6,
+                              background: issue.testCaseId.startsWith('AI_')
+                                ? '#eef2ff'
+                                : issue.testCaseId.startsWith('V_')
+                                ? '#f0fdf4'
+                                : '#f9fafb',
+                              color: issue.testCaseId.startsWith('AI_')
+                                ? '#6366f1'
+                                : issue.testCaseId.startsWith('V_')
+                                ? '#16a34a'
+                                : '#6b7280',
+                              border: `1px solid ${
+                                issue.testCaseId.startsWith('AI_') ? '#c7d2fe'
+                                  : issue.testCaseId.startsWith('V_') ? '#bbf7d0'
+                                  : '#e5e7eb'
+                              }`,
+                            }}
+                          >
                             {issue.testCaseId}
                           </span>
                         </td>
 
-                        {/* Page / Section */}
-                        <td className="px-4 py-4 align-top" style={{ maxWidth: 130 }}>
-                          <p className="text-[12.5px] font-bold text-slate-800 leading-snug">{issue.pageUrl}</p>
+                        {/* Page */}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', width: 170, maxWidth: 170, overflow: 'hidden' }}>
+                          {(() => {
+                            const p = pageParts(issue.pageUrl);
+                            return (
+                              <div title={p.full}>
+                                <p style={{
+                                  fontSize: 12.5, fontWeight: 600, color: '#1f2937', lineHeight: 1.4,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>
+                                  {p.path || p.host}
+                                </p>
+                                {p.path && (
+                                  <p style={{
+                                    fontSize: 10.5, color: '#9ca3af', lineHeight: 1.4, marginTop: 2,
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}>
+                                    {p.host}
+                                  </p>
+                                )}
+                                {p.suffix && (
+                                  <span style={{
+                                    display: 'inline-block', marginTop: 4,
+                                    fontSize: 9.5, fontWeight: 700,
+                                    color: '#4f46e5', background: '#eef2ff',
+                                    border: '1px solid #c7d2fe',
+                                    padding: '1px 7px', borderRadius: 5,
+                                    whiteSpace: 'nowrap',
+                                  }}>
+                                    {p.suffix}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Description */}
-                        <td className="px-4 py-4 align-top" style={{ maxWidth: 320 }}>
-                          <div className="space-y-0.5">
-                            {issue.description.split('\n').slice(0, 4).map((line, i) => (
-                              <div key={i} className={
-                                /^\d+\./.test(line)
-                                  ? 'text-[11px] text-slate-400 pl-3'
-                                  : 'text-[12.5px] font-semibold text-slate-700'
-                              }>{line}</div>
-                            ))}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', maxWidth: 300, overflowWrap: 'anywhere' }}>
+                          <div style={{ marginBottom: 2 }}>
+                            {issue.description.split('\n').filter(l => l.trim()).slice(0, 8).map((line, i) => {
+                              const isDetail = /^(\d+\.|• )/.test(line);
+                              const isHeader = /^(Exact locations|Steps to fix|Findings):/.test(line);
+                              return (
+                                <div
+                                  key={i}
+                                  style={{
+                                    fontSize: isHeader ? 10 : isDetail ? 11 : 12.5,
+                                    color: isHeader ? '#6366f1' : isDetail ? '#6b7280' : '#374151',
+                                    fontWeight: isHeader ? 700 : isDetail ? 400 : 500,
+                                    textTransform: isHeader ? 'uppercase' : 'none',
+                                    letterSpacing: isHeader ? '0.06em' : 'normal',
+                                    paddingLeft: isDetail ? 10 : 0,
+                                    marginTop: isHeader ? 6 : 0,
+                                    lineHeight: 1.5,
+                                    overflowWrap: 'anywhere',
+                                  }}
+                                >
+                                  {line}
+                                </div>
+                              );
+                            })}
+                            {issue.description.split('\n').filter(l => l.trim()).length > 8 && (
+                              <button
+                                onClick={() => openEdit(issue)}
+                                style={{
+                                  fontSize: 10.5, fontWeight: 600, color: '#6366f1',
+                                  background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 2,
+                                }}
+                              >
+                                Show all details…
+                              </button>
+                            )}
                           </div>
                           {issue.remarks && (
-                            <span className="inline-block mt-2 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
+                            <span
+                              style={{
+                                display: 'inline-block', marginTop: 6,
+                                fontSize: 10, fontWeight: 600,
+                                color: '#d97706', background: '#fffbeb',
+                                border: '1px solid #fde68a',
+                                padding: '2px 8px', borderRadius: 5,
+                              }}
+                            >
                               {issue.remarks}
                             </span>
                           )}
-                          {/* Screenshot link */}
                           {issue.screenshot ? (
                             <button
                               onClick={() => openScreenshot(issue.screenshot!)}
-                              className="mt-2 inline-flex items-center gap-1.5 text-[10.5px] font-bold text-indigo-500 hover:text-indigo-700 transition-colors">
-                              <Camera style={{ width: 11, height: 11 }} />
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                marginTop: 6, fontSize: 10.5, fontWeight: 600,
+                                color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer',
+                              }}
+                            >
+                              <Camera style={{ width: 10, height: 10 }} />
                               View Screenshot
-                              <ChevronRight style={{ width: 10, height: 10 }} />
+                              <ChevronRight style={{ width: 9, height: 9 }} />
                             </button>
                           ) : (
-                            <button onClick={() => openEdit(issue)}
-                              className="mt-2 inline-flex items-center gap-1 text-[10px] text-slate-300 hover:text-slate-500 transition-colors">
-                              <Image style={{ width: 10, height: 10 }} />
-                              Add screenshot
+                            <button
+                              onClick={() => openEdit(issue)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 4,
+                                marginTop: 6, fontSize: 10, color: '#d1d5db',
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                transition: 'color 0.15s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.color = '#9ca3af')}
+                              onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                            >
+                              <Image style={{ width: 10, height: 10 }} /> Add screenshot
                             </button>
                           )}
                         </td>
 
-                        {/* Device */}
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex items-center gap-1.5">
+                        {/* Scope */}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {issue.deviceType === 'mobile'
-                              ? <Smartphone className="text-slate-300" style={{ width: 14, height: 14 }} />
+                              ? <Smartphone style={{ width: 13, height: 13, color: '#d1d5db' }} />
                               : issue.deviceType === 'tablet'
-                              ? <Tablet className="text-slate-300" style={{ width: 14, height: 14 }} />
-                              : <Monitor className="text-slate-300" style={{ width: 14, height: 14 }} />}
-                            <span className="text-[11.5px] font-semibold text-slate-500 capitalize">{issue.deviceType}</span>
+                              ? <Tablet style={{ width: 13, height: 13, color: '#d1d5db' }} />
+                              : <Monitor style={{ width: 13, height: 13, color: '#d1d5db' }} />}
+                            <span style={{ fontSize: 11.5, fontWeight: 500, color: '#6b7280', textTransform: 'capitalize' }}>
+                              {issue.deviceType}
+                            </span>
                           </div>
                         </td>
 
-                        {/* Status — click to cycle */}
-                        <td className="px-4 py-4 align-top">
+                        {/* Status */}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                           <button
                             onClick={() => handleQuickStatus(issue.testCaseId, issue.status)}
                             title="Click to change status"
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ring-2 ring-transparent ${sc.ring} ${sc.bg} ${sc.text}`}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                              padding: '5px 10px', borderRadius: 20,
+                              fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                              background: sc.bg, color: sc.text,
+                              border: `1px solid ${sc.border}`,
+                              cursor: 'pointer', transition: 'box-shadow 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 0 0 3px ${sc.ring}`)}
+                            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
                           >
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sc.dot}`} />
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
                             {issue.status.charAt(0).toUpperCase() + issue.status.slice(1)}
                           </button>
-                          <p className="text-[9px] text-slate-300 mt-1 font-medium pl-1">click to change</p>
+                          <p style={{ fontSize: 9, color: '#d1d5db', marginTop: 3, paddingLeft: 2, fontWeight: 500 }}>
+                            click to advance
+                          </p>
                         </td>
 
                         {/* Priority / Type */}
-                        <td className="px-4 py-4 align-top">
-                          <div className="flex flex-col gap-1.5">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider w-fit ${priorityBadge(issue.priority)}`}>
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <span
+                              style={{
+                                display: 'inline-flex', alignItems: 'center',
+                                padding: '3px 10px', borderRadius: 20,
+                                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                background: pc.bg, color: pc.text, border: `1px solid ${pc.border}`,
+                                width: 'fit-content',
+                              }}
+                            >
                               {issue.priority}
                             </span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{issue.type}</span>
-                            {issue.version && <span className="text-[9px] text-slate-300 font-bold">{issue.version}</span>}
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                              {issue.type}
+                            </span>
+                            {issue.version && (
+                              <span style={{ fontSize: 9, fontWeight: 600, color: '#d1d5db' }}>{issue.version}</span>
+                            )}
                           </div>
                         </td>
 
                         {/* Assignment */}
-                        <td className="px-4 py-4 align-top">
-                          <div className="space-y-2.5">
-                            <div>
-                              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Logged</p>
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-[10px] font-black text-slate-500 shrink-0 border border-slate-200">
-                                  {(issue.loggedBy || '?').charAt(0).toUpperCase()}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {[
+                              { label: 'Logged', name: issue.loggedBy, color: '#f3f4f6', textColor: '#6b7280', border: '#e5e7eb' },
+                              { label: 'Assigned', name: issue.assignedTo, color: '#eef2ff', textColor: '#6366f1', border: '#c7d2fe' },
+                            ].map(({ label, name, color, textColor, border }) => (
+                              <div key={label}>
+                                <p style={{ fontSize: 9, fontWeight: 700, color: '#d1d5db', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+                                  {label}
+                                </p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div
+                                    style={{
+                                      width: 22, height: 22, borderRadius: '50%',
+                                      background: color, border: `1px solid ${border}`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: 9, fontWeight: 800, color: textColor, flexShrink: 0,
+                                    }}
+                                  >
+                                    {(name || '?').charAt(0).toUpperCase()}
+                                  </div>
+                                  <span style={{ fontSize: 11.5, fontWeight: 500, color: '#374151', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {name || '—'}
+                                  </span>
                                 </div>
-                                <span className="text-[11.5px] font-semibold text-slate-600 truncate" style={{ maxWidth: 78 }}>{issue.loggedBy || '—'}</span>
                               </div>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Assigned</p>
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-[10px] font-black text-indigo-600 shrink-0 border border-indigo-200">
-                                  {(issue.assignedTo || '?').charAt(0).toUpperCase()}
-                                </div>
-                                <span className="text-[11.5px] font-bold text-slate-800 truncate" style={{ maxWidth: 78 }}>{issue.assignedTo || '—'}</span>
-                              </div>
-                            </div>
+                            ))}
                           </div>
                         </td>
 
                         {/* Date */}
-                        <td className="px-4 py-4 align-top whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="text-slate-300" style={{ width: 12, height: 12 }} />
-                            <span className="text-[11.5px] font-semibold text-slate-500">{issue.reportedOn}</span>
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Clock style={{ width: 11, height: 11, color: '#d1d5db' }} />
+                            <span style={{ fontSize: 11.5, fontWeight: 500, color: '#6b7280' }}>{issue.reportedOn}</span>
                           </div>
                         </td>
 
                         {/* Actions */}
-                        <td className="px-3 py-4 align-top">
-                          <div className="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEdit(issue)}
-                              className="p-2 hover:bg-indigo-50 rounded-lg transition-colors group/b"
-                              title="Edit">
-                              <Edit2 className="text-slate-400 group-hover/b:text-indigo-600 transition-colors" style={{ width: 14, height: 14 }} />
+                        <td style={{ padding: '14px 12px', verticalAlign: 'top' }}>
+                          <div
+                            style={{ display: 'flex', alignItems: 'center', gap: 2, opacity: 0, transition: 'opacity 0.15s' }}
+                            className="group-hover:!opacity-100"
+                          >
+                            <button
+                              onClick={() => openEdit(issue)}
+                              title="Edit"
+                              style={{ padding: 7, borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s', color: '#9ca3af' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.color = '#6366f1'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                            >
+                              <Edit2 style={{ width: 13, height: 13 }} />
                             </button>
-                            <button onClick={() => handleDelete(issue.testCaseId)}
-                              className="p-2 hover:bg-rose-50 rounded-lg transition-colors group/b"
-                              title="Delete">
-                              <Trash2 className="text-slate-400 group-hover/b:text-rose-600 transition-colors" style={{ width: 14, height: 14 }} />
+                            <button
+                              onClick={() => handleDelete(issue.testCaseId)}
+                              title="Delete"
+                              style={{ padding: 7, borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s', color: '#9ca3af' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9ca3af'; }}
+                            >
+                              <Trash2 style={{ width: 13, height: 13 }} />
                             </button>
                           </div>
                         </td>
@@ -649,27 +965,27 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
               </table>
             </div>
 
-            {/* Footer count */}
-            <div className="px-6 py-3 border-t border-slate-50 flex items-center justify-between bg-slate-50/50">
-              <span className="text-[11px] font-bold text-slate-400">
+            <div
+              style={{
+                padding: '10px 20px',
+                borderTop: '1px solid #f3f4f6',
+                background: '#fafafa',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af' }}>
                 Showing {filtered.length} of {manualIssues.length} issues
               </span>
-              <span className="text-[11px] font-bold text-slate-400">
-                Tip: click a status badge to cycle it instantly
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af' }}>
+                Tip: click a status badge to cycle through states
               </span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {modal && (
-        <IssueModal
-          mode={modal.mode}
-          issue={modal.issue}
-          onSave={handleSave}
-          onClose={() => setModal(null)}
-        />
+        <IssueModal mode={modal.mode} issue={modal.issue} onSave={handleSave} onClose={() => setModal(null)} />
       )}
     </div>
   );

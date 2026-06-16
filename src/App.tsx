@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TestingAgent } from './agent/tester';
 import type { TestIssue, TestResult, ChecklistStatus, Page, AppSettings, RecentReport, TestingIssue } from './types';
 import { TESTING_ISSUES } from './constants/testingData';
+import { loadSession, saveSession } from './utils/session';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
 import LiveTestingPage from './pages/LiveTestingPage';
@@ -44,17 +45,45 @@ const App: React.FC = () => {
     email: '',
   });
 
+  // ── Session persistence: restore the last audit on load, save on change ──
+  const hydrated = useRef(false);
+  useEffect(() => {
+    loadSession().then(s => {
+      if (s) {
+        setTestedUrl(s.testedUrl);
+        setTestResult(s.testResult);
+        setIssues(s.issues ?? []);
+        setChecklistStatus(s.checklistStatus ?? {});
+        setRecentReports(s.recentReports ?? []);
+        if (s.manualIssues?.length) setManualIssues(s.manualIssues);
+      }
+      hydrated.current = true;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current || isTesting) return;
+    saveSession({
+      testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues,
+      savedAt: new Date().toISOString(),
+    });
+  }, [testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues, isTesting]);
+
   const addLog = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setLogs(prev => [...prev, { message, type }]);
 
     const lower = message.toLowerCase();
-    if (lower.includes('https') || lower.includes('ssl')) setCurrentPhase('Security Check');
-    else if (lower.includes('html') || lower.includes('fetch')) setCurrentPhase('HTML Fetch');
-    else if (lower.includes('analyzing')) setCurrentPhase('HTML Analysis');
-    else if (lower.includes('pagespeed')) setCurrentPhase('Performance Audit');
-    else if (lower.includes('seo')) setCurrentPhase('SEO Analysis');
-    else if (lower.includes('initializ')) setCurrentPhase('Initializing');
-    else if (lower.includes('complete') || lower.includes('audit complete')) setCurrentPhase('Complete');
+    if (lower.includes('branding')) setCurrentPhase('Branding & Header');
+    else if (lower.includes('crawling') || lower.includes('visiting')) setCurrentPhase('Page Crawl');
+    else if (lower.includes('validating every link') || lower.includes('checking') && lower.includes('link')) setCurrentPhase('Link Integrity');
+    else if (lower.includes('spelling') || lower.includes('analyzing content')) setCurrentPhase('Content & Spelling');
+    else if (lower.includes('form')) setCurrentPhase('Forms & Validation');
+    else if (lower.includes('button') || lower.includes('keyboard')) setCurrentPhase('Buttons & UI');
+    else if (lower.includes('social')) setCurrentPhase('Social & Footer');
+    else if (lower.includes('resolution') || lower.includes('scanning layout')) setCurrentPhase('Responsive Testing');
+    else if (lower.includes('performance') || lower.includes('seo')) setCurrentPhase('Performance & SEO');
+    else if (lower.includes('initializ') || lower.includes('starting')) setCurrentPhase('Initializing');
+    else if (lower.includes('audit complete')) setCurrentPhase('Complete');
 
     if (message.includes('[Critical]') || message.includes('[Major]') || message.includes('[Minor]')) {
       setIssuesFoundCount(prev => prev + 1);
@@ -85,14 +114,16 @@ const App: React.FC = () => {
     setChecklistStatus(checks);
     setIsTesting(false);
 
-    // Merge scanned issues into the issue tracker (replace previous AI_ entries)
+    // Merge scanned issues into the issue tracker
     const scannedMapped: TestingIssue[] = foundIssues.map(i => ({
-      testCaseId: `AI_${i.id.slice(0, 4).toUpperCase()}`,
+      testCaseId: `QA_${i.id.padStart(3, '0')}`,
       pageUrl: i.affectedPage || 'Current Page',
-      description: `${i.name}: ${i.description}${i.steps ? '\n\nSteps:\n' + i.steps : ''}`,
-      deviceType: 'website',
+      description: `${i.name}: ${i.description}`
+        + (i.details?.length ? '\n\nExact locations:\n' + i.details.map(d => '• ' + d).join('\n') : '')
+        + (i.steps ? '\n\nSteps to fix:\n' + i.steps : ''),
+      deviceType: /mobile/i.test(i.browser) ? 'mobile' : /tablet|pad/i.test(i.browser) ? 'tablet' : 'website',
       status: 'open',
-      loggedBy: 'AI Agent',
+      loggedBy: 'Test Engine',
       assignedTo: 'Sodham',
       remarks: i.category,
       reportedOn: new Date().toLocaleDateString(),
@@ -101,9 +132,34 @@ const App: React.FC = () => {
       version: '',
       screenshot: i.screenshot,
     }));
+
+    // Also map PASSED checks as "Verified" entries to provide a full "validated list"
+    const passedMapped: TestingIssue[] = [];
+    Object.entries(checks).forEach(([cat, items]) => {
+      Object.entries(items).forEach(([checkName, status]) => {
+        if (status === 'pass') {
+          passedMapped.push({
+            testCaseId: `V_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+            pageUrl: 'Site Audit',
+            description: `${checkName}: Successfully validated and passed.`,
+            deviceType: 'website',
+            status: 'verified',
+            loggedBy: 'Test Engine',
+            assignedTo: 'Sodham',
+            remarks: cat,
+            reportedOn: new Date().toLocaleDateString(),
+            priority: 'Low',
+            type: 'Auto Audit',
+            version: '',
+          });
+        }
+      });
+    });
+
     setManualIssues(prev => [
-      ...prev.filter(i => !i.testCaseId.startsWith('AI_')),
+      ...prev.filter(i => !i.testCaseId.startsWith('AI_') && !i.testCaseId.startsWith('QA_') && !i.testCaseId.startsWith('V_')),
       ...scannedMapped,
+      ...passedMapped,
     ]);
 
     const passedCount = Object.values(checks).reduce(
@@ -129,8 +185,8 @@ const App: React.FC = () => {
 
   return (
     <div
-      className="flex h-screen overflow-hidden bg-slate-50"
-      style={{ fontFamily: "'Mulish', sans-serif" }}
+      className="flex h-screen overflow-hidden"
+      style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#f6f7f9' }}
     >
       <Sidebar
         currentPage={page}
@@ -174,7 +230,7 @@ const App: React.FC = () => {
                 progress={progress}
                 logs={logs}
                 currentPhase={currentPhase}
-                issuesFound={issuesFoundCount}
+
                 testedUrl={testedUrl}
                 isTesting={isTesting}
                 onViewReport={() => setPage('testing_view')}

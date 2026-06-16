@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #ffffff;
+    color: #0f172a;
+    width: 1680px;
+    padding: 30px 36px 26px;
+  }
+
+  /* ── Title ── */
+  .title {
+    text-align: center;
+    font-size: 27px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: #1e1b4b;
+    margin-bottom: 4px;
+  }
+  .title .accent { color: #4f46e5; }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 24px;
+  }
+
+  /* ── Column headers ── */
+  .cols { display: grid; grid-template-columns: 150px 1fr 1.15fr 1.05fr; gap: 18px; align-items: start; }
+  .colhead { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .num {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: #fff; flex-shrink: 0;
+  }
+  .n1 { background: #7c3aed; } .n2 { background: #0ea5e9; }
+  .n3 { background: #16a34a; } .n4 { background: #4f46e5; }
+  .colhead h2 { font-size: 13.5px; font-weight: 800; letter-spacing: 0.01em; }
+  .c1 { color: #7c3aed; } .c2 { color: #0369a1; } .c3 { color: #15803d; } .c4 { color: #4338ca; }
+
+  /* ── Generic card ── */
+  .card {
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 13px;
+    box-shadow: 0 1px 3px rgba(16,24,40,0.06), 0 6px 16px rgba(16,24,40,0.04);
+  }
+
+  /* Input box */
+  .input-box {
+    padding: 18px 16px; text-align: center;
+    border: 2px solid #ddd6fe; border-radius: 14px; background: #faf5ff;
+  }
+  .chat-bubble {
+    width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 12px;
+    background: linear-gradient(135deg,#7c3aed,#6366f1);
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+    box-shadow: 0 6px 16px rgba(124,58,237,0.35);
+  }
+  .input-box .lbl { font-size: 12px; font-weight: 800; color: #5b21b6; margin-bottom: 6px; }
+  .input-box .url {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    color: #4338ca; background: #ede9fe; border-radius: 7px; padding: 6px 8px; word-break: break-all;
+  }
+  .input-box .note { font-size: 10px; color: #6b7280; margin-top: 10px; line-height: 1.5; }
+
+  /* Engine box (col 2) */
+  .engine {
+    padding: 16px; border: 2px solid #bae6fd; border-radius: 14px; background: #f0f9ff;
+  }
+  .engine .top { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+  .engine .top .ico { font-size: 20px; }
+  .engine .top h3 { font-size: 15px; font-weight: 800; color: #0369a1; }
+  .pill {
+    display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.04em;
+    padding: 3px 9px; border-radius: 20px; text-transform: uppercase;
+  }
+  .pill-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+  .pill-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .engine .resp-label { font-size: 11px; font-weight: 800; color: #0c4a6e; margin: 12px 0 6px; }
+  .engine ul { list-style: none; }
+  .engine li {
+    font-size: 11px; color: #334155; font-weight: 600; padding: 3px 0 3px 16px; position: relative;
+  }
+  .engine li::before {
+    content: ''; position: absolute; left: 2px; top: 9px;
+    width: 6px; height: 6px; border-radius: 50%; background: #0ea5e9;
+  }
+  .engine .divider { border-top: 1.5px dashed #bae6fd; margin: 12px 0; }
+  .engine .synth { background: #fff; border: 1.5px solid #bae6fd; border-radius: 10px; padding: 11px; }
+  .engine .synth h4 { font-size: 11.5px; font-weight: 800; color: #0369a1; margin-bottom: 4px; }
+  .engine .synth p { font-size: 10.5px; color: #475569; font-weight: 600; line-height: 1.5; }
+
+  /* Tool rows (col 3) */
+  .tool {
+    display: flex; align-items: center; gap: 11px; padding: 11px 13px; margin-bottom: 9px;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 11px; position: relative;
+  }
+  .tool .tnum {
+    width: 22px; height: 22px; border-radius: 50%; background: #16a34a; color: #fff;
+    font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .tool .ticon { font-size: 18px; width: 22px; text-align: center; flex-shrink: 0; }
+  .tool .tbody { flex: 1; min-width: 0; }
+  .tool .tbody h4 { font-size: 12.5px; font-weight: 800; color: #14532d; }
+  .tool .tbody p { font-size: 10.5px; color: #64748b; font-weight: 600; margin-top: 1px; }
+  .tool .tag {
+    font-size: 9px; font-weight: 800; color: #b91c1c; background: #fef2f2;
+    border: 1px solid #fecaca; border-radius: 6px; padding: 3px 7px; flex-shrink: 0; letter-spacing: 0.03em;
+  }
+  .tag-green { color: #15803d !important; background: #dcfce7 !important; border-color: #86efac !important; }
+
+  /* External sources (col 4) */
+  .ext {
+    display: flex; gap: 11px; padding: 12px 13px; margin-bottom: 9px;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 11px;
+  }
+  .ext .eicon {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .ext .ebody h4 { font-size: 12px; font-weight: 800; color: #1e293b; }
+  .ext .ebody .meta { font-size: 10px; font-weight: 700; margin-top: 3px; }
+  .ext .ebody .verb { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  .v-get { color: #0369a1; }
+  .v-local { color: #7c3aed; }
+  .ext .ebody .purpose { font-size: 10px; color: #64748b; font-weight: 600; margin-top: 2px; }
+  .ext .ebody .url { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: #475569; word-break: break-all; }
+
+  /* Aggregation */
+  .agg-wrap { margin-top: 22px; }
+  .agg-title { text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: #4338ca; margin-bottom: 11px; }
+  .agg {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 14px; padding: 14px;
+  }
+  .agg .cell {
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 11px; text-align: center;
+  }
+  .agg .cell .ci { font-size: 18px; }
+  .agg .cell h5 { font-size: 11px; font-weight: 800; color: #1e293b; margin: 5px 0 2px; }
+  .agg .cell p { font-size: 9.5px; color: #64748b; font-weight: 600; line-height: 1.35; }
+
+  /* Outputs */
+  .outs { display: grid; grid-template-columns: 1.55fr 1fr; gap: 18px; margin-top: 20px; }
+  .panel { border-radius: 14px; padding: 16px; }
+  .panel-a { background: #eef2ff; border: 1.5px solid #c7d2fe; }
+  .panel-b { background: #ecfdf5; border: 1.5px solid #a7f3d0; }
+  .panel h3 { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 12px; }
+  .panel-a h3 { color: #4338ca; } .panel-b h3 { color: #15803d; }
+  .out-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .out-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 11px; }
+  .out-card .oi { font-size: 16px; }
+  .out-card h5 { font-size: 10.5px; font-weight: 800; color: #1e293b; margin: 6px 0 5px; line-height: 1.25; }
+  .out-card .bar { height: 5px; border-radius: 3px; background: #e2e8f0; margin-bottom: 4px; }
+  .out-card .bar.f { background: linear-gradient(90deg,#6366f1,#8b5cf6); }
+  .out-card .bar.g { background: #10b981; } .out-card .bar.r { background: #ef4444; } .out-card .bar.a { background: #f59e0b; }
+  .stream-bar {
+    margin-top: 12px; background: #1e1b4b; border-radius: 10px; padding: 11px 14px;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .stream-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+  .stream-bar span { color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 700; }
+
+  .report-rows { display: flex; gap: 13px; align-items: center; }
+  .xls-icon {
+    width: 58px; height: 58px; border-radius: 12px; background: #16a34a; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; flex-shrink: 0;
+  }
+  .report-rows ul { list-style: none; flex: 1; }
+  .report-rows li { font-size: 11px; font-weight: 700; color: #166534; padding: 2.5px 0 2.5px 18px; position: relative; }
+  .report-rows li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 900; }
+  .file-tags { display: flex; flex-direction: column; gap: 8px; }
+  .file-tag {
+    background: #fff; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 7px 13px;
+    font-size: 11px; font-weight: 800; color: #15803d; text-align: center;
+  }
+
+  /* Bottom row: legend + notes */
+  .bottom { display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; margin-top: 20px; }
+  .legend, .notes { border: 1.5px solid #e2e8f0; border-radius: 13px; padding: 15px 17px; background: #fff; }
+  .legend h4, .notes h4 { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: #475569; margin-bottom: 11px; }
+  .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 18px; }
+  .leg { display: flex; align-items: center; gap: 9px; font-size: 11px; font-weight: 600; color: #334155; }
+  .line { width: 30px; height: 0; flex-shrink: 0; }
+  .line-solid { border-top: 2px solid #0f172a; }
+  .line-red { border-top: 2px solid #ef4444; }
+  .line-blue { border-top: 2px dashed #2563eb; }
+  .line-green { border-top: 2px dashed #16a34a; }
+  .mono-tag { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #0369a1; }
+  .mono-tag.local { color: #7c3aed; }
+  .notes ul { list-style: none; }
+  .notes li { font-size: 11px; color: #334155; font-weight: 600; line-height: 1.6; padding-left: 16px; position: relative; }
+  .notes li::before { content: '•'; position: absolute; left: 3px; color: #4f46e5; font-weight: 900; }
+  .badge-noLLM {
+    display: inline-block; background: #fef3c7; color: #92400e; border: 1.5px solid #fcd34d;
+    font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+  <div class="title">WEBSITE TESTING AGENT &nbsp;&mdash;&nbsp; <span class="accent">ARCHITECTURE &amp; AUDIT FLOW</span></div>
+  <div class="subtitle">Deterministic Playwright QA engine &middot; <span class="badge-noLLM">NO LLM &middot; NO API KEYS &middot; NO RATE LIMITS</span></div>
+
+  <div class="cols">
+    <!-- Col 1: INPUT -->
+    <div>
+      <div class="colhead"><div class="num n1">1</div><h2 class="c1">INPUT</h2></div>
+      <div class="input-box">
+        <div class="chat-bubble">🌐</div>
+        <div class="lbl">Website URL</div>
+        <div class="url">https://yoursite.com</div>
+        <div class="note">User enters a URL in the dashboard and clicks <b>Run audit</b>.</div>
+      </div>
+    </div>
+
+    <!-- Col 2: ENGINE -->
+    <div>
+      <div class="colhead"><div class="num n2">2</div><h2 class="c2">QA ENGINE (PLAYWRIGHT)</h2></div>
+      <div class="engine">
+        <div class="top"><span class="ico">🎭</span><h3>TestCaseAuditAgent</h3></div>
+        <span class="pill pill-green">Deterministic · No LLM</span>
+        <div class="resp-label">ENGINE RESPONSIBILITIES</div>
+        <ul>
+          <li>Launch headless Chromium</li>
+          <li>Crawl home + menu/footer pages</li>
+          <li>Run 60 test cases across 10 categories</li>
+          <li>Capture per-page evidence screenshots</li>
+          <li>Stream live logs &amp; progress (SSE)</li>
+        </ul>
+        <div class="divider"></div>
+        <div class="synth">
+          <h4>Aggregate Results</h4>
+          <p>Combine every page&rsquo;s findings into issues, checklist status &amp; scores — then return the report.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 3: TOOLS -->
+    <div>
+      <div class="colhead"><div class="num n3">3</div><h2 class="c3">TEST-CASE ACTIONS (PER PAGE)</h2></div>
+      <div class="tool"><div class="tnum">1</div><span class="ticon">🧭</span><div class="tbody"><h4>navigate &amp; crawl</h4><p>Visit each page, capture screenshot &amp; DOM</p></div><span class="tag">PAGE LOAD</span></div>
+      <div class="tool"><div class="tnum">2</div><span class="ticon">🔗</span><div class="tbody"><h4>check_links</h4><p>Broken links, redirects, anchors</p></div><span class="tag">HEAD / GET</span></div>
+      <div class="tool"><div class="tnum">3</div><span class="ticon">📐</span><div class="tbody"><h4>scan_layout</h4><p>6 resolutions: overflow, overlap, padding</p></div><span class="tag tag-green">VIEWPORT</span></div>
+      <div class="tool"><div class="tnum">4</div><span class="ticon">📝</span><div class="tbody"><h4>check_content</h4><p>Spelling, grammar, fonts, headings</p></div><span class="tag tag-green">DOM SCAN</span></div>
+      <div class="tool"><div class="tnum">5</div><span class="ticon">📋</span><div class="tbody"><h4>test_forms</h4><p>Labels, tooltips, validation, errors</p></div><span class="tag tag-green">INTERACT</span></div>
+      <div class="tool"><div class="tnum">6</div><span class="ticon">🔍</span><div class="tbody"><h4>check_seo</h4><p>Meta title/description, H1, per page</p></div><span class="tag tag-green">DOM SCAN</span></div>
+    </div>
+
+    <!-- Col 4: EXTERNAL -->
+    <div>
+      <div class="colhead"><div class="num n4">4</div><h2 class="c4">EXTERNAL SOURCES</h2></div>
+      <div class="ext">
+        <div class="eicon" style="background:#eff6ff">🌍</div>
+        <div class="ebody"><h4>Target Website</h4><div class="meta"><span class="verb v-get">GET</span> <span class="purpose">— Home + crawled pages (HTML, DOM, CSS)</span></div><div class="url">https://yoursite.com/*</div></div>
+      </div>
+      <div class="ext">
+        <div class="eicon" style="background:#f0fdf4">🔗</div>
+        <div class="ebody"><h4>Link Validation</h4><div class="meta"><span class="verb v-get">HEAD/GET</span> <span class="purpose">— Status of every internal &amp; external link</span></div><div class="url">redirect-aware · up to 120 links</div></div>
+      </div>
+      <div class="ext">
+        <div class="eicon" style="background:#fef2f2">🖼️</div>
+        <div class="ebody"><h4>Page Assets</h4><div class="meta"><span class="verb v-get">GET</span> <span class="purpose">— Images, favicon, fonts (weight &amp; alt-text)</span></div><div class="url">resource-timing · transfer size</div></div>
+      </div>
+      <div class="ext">
+        <div class="eicon" style="background:#faf5ff">📱</div>
+        <div class="ebody"><h4>Social Profiles</h4><div class="meta"><span class="verb v-get">GET</span> <span class="purpose">— Validate footer social links resolve</span></div><div class="url">facebook · x · instagram · linkedin…</div></div>
+      </div>
+      <div class="ext">
+        <div class="eicon" style="background:#f1f5f9">💾</div>
+        <div class="ebody"><h4>Browser Storage</h4><div class="meta"><span class="verb v-local">LOCAL</span> <span class="purpose">— Persist session (IndexedDB), survives refresh</span></div><div class="url">no server · no cloud · private</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aggregation -->
+  <div class="agg-wrap">
+    <div class="agg-title">RESULTS AGGREGATION</div>
+    <div class="agg">
+      <div class="cell"><div class="ci">🐞</div><h5>Issues</h5><p>Per-page bugs with severity &amp; steps</p></div>
+      <div class="cell"><div class="ci">✅</div><h5>Checklist</h5><p>60 checks: pass / fail / warning</p></div>
+      <div class="cell"><div class="ci">📷</div><h5>Screenshots</h5><p>Evidence captured per page</p></div>
+      <div class="cell"><div class="ci">📊</div><h5>Scores</h5><p>SEO · Performance · A11y · Best-practice</p></div>
+      <div class="cell"><div class="ci">📄</div><h5>Page Map</h5><p>Every crawled page &amp; its findings</p></div>
+    </div>
+  </div>
+
+  <!-- Outputs -->
+  <div class="outs">
+    <div class="panel panel-a">
+      <h3>A. LIVE RESULTS (IN-APP)</h3>
+      <div class="out-grid">
+        <div class="out-card"><div class="oi">📡</div><h5>Live Audit Stream</h5><div class="bar f"></div><div class="bar f" style="width:70%"></div></div>
+        <div class="out-card"><div class="oi">🗂️</div><h5>Issue Tracker</h5><div class="bar r"></div><div class="bar a" style="width:60%"></div></div>
+        <div class="out-card"><div class="oi">📃</div><h5>Page-by-Page Report</h5><div class="bar g"></div><div class="bar" style="width:80%"></div></div>
+        <div class="out-card"><div class="oi">📈</div><h5>Score Dashboard</h5><div class="bar g"></div><div class="bar a" style="width:50%"></div></div>
+      </div>
+      <div class="stream-bar"><span class="dot"></span><span>Live logs &amp; progress streamed to the UI over Server-Sent Events (SSE)</span></div>
+    </div>
+
+    <div class="panel panel-b">
+      <h3>B. EXPORT (DOWNLOAD)</h3>
+      <div class="report-rows">
+        <div class="xls-icon">X</div>
+        <ul>
+          <li>All issues, per page</li>
+          <li>Severity &amp; fix steps</li>
+          <li>Checklist status</li>
+          <li>Device / resolution</li>
+        </ul>
+        <div class="file-tags">
+          <div class="file-tag">XLSX</div>
+          <div class="file-tag">CSV</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: legend + notes -->
+  <div class="bottom">
+    <div class="legend">
+      <h4>LEGEND</h4>
+      <div class="legend-grid">
+        <div class="leg"><span class="line line-solid"></span> Data flow</div>
+        <div class="leg"><span class="line line-red"></span> Network request</div>
+        <div class="leg"><span class="line line-blue"></span> Action (engine → page)</div>
+        <div class="leg"><span class="line line-green"></span> Results (page → engine)</div>
+        <div class="leg"><span class="mono-tag">GET / HEAD</span> HTTP request</div>
+        <div class="leg"><span class="mono-tag local">LOCAL</span> Browser-side only</div>
+      </div>
+    </div>
+    <div class="notes">
+      <h4>HOW IT WORKS</h4>
+      <ul>
+        <li>The engine is fully deterministic — <b>no LLM, no API keys, no rate limits</b>, so audits never stall.</li>
+        <li>Each page is crawled, then 60 test cases run per page and at 6 screen resolutions (640×480 → 1920×1080, tablet, mobile).</li>
+        <li>Every finding is attributed to its own page and carries that page&rsquo;s evidence screenshot.</li>
+        <li>Results stream live to the UI and persist in the browser; the full report exports to Excel / CSV.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

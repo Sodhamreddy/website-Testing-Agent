@@ -59,7 +59,7 @@ export interface TestResult {
 }
 
 export interface ChecklistStatus {
-  [category: string]: { [item: string]: 'pass' | 'fail' | 'pending' };
+  [category: string]: { [item: string]: 'pass' | 'fail' | 'warning' | 'pending' };
 }
 
 export type Page = 'dashboard' | 'testing' | 'report' | 'settings' | 'testing_view';

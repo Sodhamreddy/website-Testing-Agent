@@ -1,5 +1,73 @@
 import * as XLSX from 'xlsx';
-import type { ChecklistStatus, TestIssue, TestResult } from '../types';
+import type { ChecklistStatus, TestIssue, TestResult, TestingIssue } from '../types';
+
+/**
+ * Issue-tracker → Excel, in the same format as the manual QA bug sheets
+ * (Website QA - Assured home nursing.xlsx): one "Bug Report" sheet with the
+ * familiar columns plus a summary sheet with counts by status/priority.
+ */
+export function exportIssueLogToExcel(issues: TestingIssue[]) {
+  const wb = XLSX.utils.book_new();
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  // ── Sheet 1: Bug Report (manual QA sheet columns) ──
+  const headers = [
+    'Bug No', 'Website Page / Module', 'Issue Description', 'Status',
+    'Remarks/Comments', 'Device Type', 'Date', 'Logged by', 'Assigned To',
+    'Priority', 'Type', 'Version',
+  ];
+  const rows = issues.map((i, idx) => [
+    idx + 1,
+    i.pageUrl,
+    i.description,
+    i.status,
+    i.remarks ?? '',
+    i.deviceType,
+    i.reportedOn,
+    i.loggedBy,
+    i.assignedTo,
+    i.priority,
+    i.type,
+    i.version ?? '',
+  ]);
+  const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws1['!cols'] = [
+    { wch: 7 }, { wch: 36 }, { wch: 80 }, { wch: 12 }, { wch: 40 },
+    { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
+    { wch: 12 }, { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Bug Report');
+
+  // ── Sheet 2: Summary ──
+  const by = (fn: (i: TestingIssue) => boolean) => issues.filter(fn).length;
+  const summary: (string | number)[][] = [
+    ['QA BUG REPORT SUMMARY'],
+    [''],
+    ['Generated', new Date().toLocaleString()],
+    ['Total entries', issues.length],
+    [''],
+    ['BY STATUS'],
+    ['Open', by(i => i.status.toLowerCase() === 'open')],
+    ['In Progress', by(i => i.status.toLowerCase() === 'in progress')],
+    ['Verified', by(i => i.status.toLowerCase() === 'verified')],
+    ['Fixed', by(i => i.status.toLowerCase() === 'fixed')],
+    [''],
+    ['BY PRIORITY'],
+    ['High', by(i => i.priority === 'High')],
+    ['Medium', by(i => i.priority === 'Medium')],
+    ['Low', by(i => i.priority === 'Low')],
+    [''],
+    ['BY DEVICE'],
+    ['Website / Browser', by(i => i.deviceType === 'website')],
+    ['Mobile', by(i => i.deviceType === 'mobile')],
+    ['Tablet', by(i => i.deviceType === 'tablet')],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(summary);
+  ws2['!cols'] = [{ wch: 22 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  XLSX.writeFile(wb, `QA_Bug_Report_${dateStr}.xlsx`);
+}
 
 export function exportToExcel(
   issues: TestIssue[],
