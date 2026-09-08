@@ -1,6 +1,6 @@
 // Audit-session persistence via IndexedDB (screenshot data URLs are far too
 // large for localStorage's ~5MB quota).
-import type { TestIssue, TestResult, ChecklistStatus, RecentReport, TestingIssue } from '../types';
+import type { TestIssue, TestResult, ChecklistStatus, RecentReport, TestingIssue, RunComparison } from '../types';
 
 export interface SavedSession {
   testedUrl: string;
@@ -9,6 +9,7 @@ export interface SavedSession {
   checklistStatus: ChecklistStatus;
   recentReports: RecentReport[];
   manualIssues: TestingIssue[];
+  comparison?: RunComparison | null;
   savedAt: string;
 }
 

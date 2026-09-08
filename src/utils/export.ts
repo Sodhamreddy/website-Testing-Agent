@@ -12,7 +12,7 @@ export function exportIssueLogToExcel(issues: TestingIssue[]) {
 
   // ── Sheet 1: Bug Report (manual QA sheet columns) ──
   const headers = [
-    'Bug No', 'Website Page / Module', 'Issue Description', 'Status',
+    'Bug No', 'Website Page / Module', 'Issue Description', 'SEO/GEO Content Recommendation', 'Security', 'Status',
     'Remarks/Comments', 'Device Type', 'Date', 'Logged by', 'Assigned To',
     'Priority', 'Type', 'Version',
   ];
@@ -20,6 +20,8 @@ export function exportIssueLogToExcel(issues: TestingIssue[]) {
     idx + 1,
     i.pageUrl,
     i.description,
+    i.geoSuggestion ?? '',
+    i.securityNote ?? '',
     i.status,
     i.remarks ?? '',
     i.deviceType,
@@ -32,7 +34,7 @@ export function exportIssueLogToExcel(issues: TestingIssue[]) {
   ]);
   const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws1['!cols'] = [
-    { wch: 7 }, { wch: 36 }, { wch: 80 }, { wch: 12 }, { wch: 40 },
+    { wch: 7 }, { wch: 36 }, { wch: 90 }, { wch: 50 }, { wch: 44 }, { wch: 12 }, { wch: 40 },
     { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
     { wch: 12 }, { wch: 14 },
   ];

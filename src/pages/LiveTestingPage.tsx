@@ -17,25 +17,14 @@ interface LiveTestingPageProps {
 }
 
 const aiComments = [
-  'Running branding & header test cases…',
-  'Crawling menu pages and verifying titles & home links…',
-  'Checking every link for 404s and bad redirects…',
-  'Scanning copy for spelling and grammar errors…',
-  'Testing form validation, tooltips and error messages…',
-  'Measuring buttons, fonts and alignment consistency…',
-  'Testing layout at 640×480 → 1920×1080, tablet & mobile…',
-  'Compiling the bug report with evidence screenshots…',
-];
-
-const phaseSteps = [
-  { label: 'Branding & Header',            threshold: 16 },
-  { label: 'Page Crawl & Navigation',      threshold: 34 },
-  { label: 'Broken Links & Anchors',       threshold: 48 },
-  { label: 'Content, Spelling & Fonts',    threshold: 58 },
-  { label: 'Forms & Validation',           threshold: 68 },
-  { label: 'Buttons, Keyboard & Images',   threshold: 78 },
-  { label: 'Resolutions & Responsive',     threshold: 93 },
-  { label: 'Performance & SEO',            threshold: 98 },
+  'Loading the site and taking evidence screenshots…',
+  'Security scan: headers, HTTPS, cookies, exposed files…',
+  'Deep-analysing the home page: copy, headings, GEO…',
+  'The agent is exploring — deciding what to check next…',
+  'Checking links for 404s and bad redirects…',
+  'Testing the contact form: empty, invalid, and valid…',
+  'Resizing to mobile & tablet, scanning the layout…',
+  'Compiling the issue report with evidence screenshots…',
 ];
 
 const logStyle: Record<string, string> = {
@@ -186,37 +175,6 @@ const LiveTestingPage: React.FC<LiveTestingPageProps> = ({
                   {isTesting ? (currentPhase || 'Initializing…') : 'Audit Complete'}
                 </span>
               </div>
-            </div>
-
-            {/* Phase steps */}
-            <div
-              className="rounded-2xl p-4 space-y-2.5"
-              style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}
-            >
-              <p className="section-label mb-3">Audit Phases</p>
-              {phaseSteps.map(step => {
-                const done = progress >= step.threshold;
-                return (
-                  <div key={step.label} className="flex items-center gap-3">
-                    <div
-                      className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-all duration-500"
-                      style={{ background: done ? '#6366f1' : '#f3f4f6' }}
-                    >
-                      {done && (
-                        <svg width={8} height={8} viewBox="0 0 12 12" fill="none">
-                          <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <span
-                      className="text-[11px] font-medium transition-colors"
-                      style={{ color: done ? '#374151' : '#9ca3af' }}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
 
             {/* Issue counters */}

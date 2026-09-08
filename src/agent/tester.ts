@@ -1,4 +1,4 @@
-import type { TestIssue, TestResult, ChecklistStatus } from '../types';
+import type { TestIssue, TestResult, ChecklistStatus, RunComparison } from '../types';
 
 type LogType = 'info' | 'success' | 'warning' | 'error';
 type LogCallback = (msg: string, type?: LogType) => void;
@@ -21,6 +21,8 @@ export class TestingAgent {
     issues: TestIssue[];
     result: TestResult | null;
     checklistStatus: ChecklistStatus;
+    comparison?: RunComparison | null;
+    runId?: string | null;
   }> {
     return new Promise((resolve, reject) => {
       const sse = new EventSource(`/api/audit/stream?url=${encodeURIComponent(this.url)}`);
@@ -42,6 +44,8 @@ export class TestingAgent {
               issues: msg.issues as TestIssue[],
               result: msg.result as TestResult | null,
               checklistStatus: msg.checklistStatus as ChecklistStatus,
+              comparison: (msg.comparison as RunComparison) ?? null,
+              runId: (msg.runId as string) ?? null,
             });
             break;
           case 'error':

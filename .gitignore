@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Saved audit runs (per-client history)
+server/data/
+
 # Secrets / local env
 .env
 .env.*
@@ -27,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vite temp config
+vite.config.ts.timestamp-*

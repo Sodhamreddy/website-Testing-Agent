@@ -10,6 +10,33 @@ export interface TestIssue {
   description: string;
   details?: string[];
   screenshot?: string;
+  /** Stable identity across audit runs (server-assigned). */
+  fp?: string;
+}
+
+export interface IssueDelta {
+  fp: string;
+  name: string;
+  category: string;
+  severity: string;
+  affectedPage: string;
+}
+
+export interface RunComparison {
+  previousRunId: string | null;
+  previousRanAt: string | null;
+  summary: { total: number; newCount: number; recurringCount: number; resolvedCount: number };
+  resolved: IssueDelta[];
+  recurring: string[];
+  newFps: string[];
+}
+
+export interface AuditRunSummary {
+  id: string;
+  ranAt: string;
+  score: number | null;
+  counts: { total: number; critical: number; major: number; minor: number };
+  comparison: RunComparison['summary'];
 }
 
 export interface TestingIssue {
@@ -26,6 +53,12 @@ export interface TestingIssue {
   type: string;
   version?: string;
   screenshot?: string;
+  /** Classic SEO suggestion (title / meta / tips) for this row's page. */
+  seoSuggestion?: string;
+  /** GEO / AI-search recommendations for this row's page. */
+  geoSuggestion?: string;
+  /** Security posture for the site (or the finding's own detail on Security rows). */
+  securityNote?: string;
 }
 
 export interface TestLog {

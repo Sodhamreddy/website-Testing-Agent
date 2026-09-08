@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TestingAgent } from './agent/tester';
-import type { TestIssue, TestResult, ChecklistStatus, Page, AppSettings, RecentReport, TestingIssue } from './types';
+import type { TestIssue, TestResult, ChecklistStatus, Page, AppSettings, RecentReport, TestingIssue, RunComparison } from './types';
 import { TESTING_ISSUES } from './constants/testingData';
 import { loadSession, saveSession } from './utils/session';
 import Sidebar from './components/Sidebar';
@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [checklistStatus, setChecklistStatus] = useState<ChecklistStatus>({});
   const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
   const [manualIssues, setManualIssues] = useState<TestingIssue[]>([...TESTING_ISSUES]);
+  const [comparison, setComparison] = useState<RunComparison | null>(null);
 
   const [settings, setSettings] = useState<AppSettings>({
     browser: 'chrome',
@@ -55,6 +56,7 @@ const App: React.FC = () => {
         setIssues(s.issues ?? []);
         setChecklistStatus(s.checklistStatus ?? {});
         setRecentReports(s.recentReports ?? []);
+        setComparison(s.comparison ?? null);
         if (s.manualIssues?.length) setManualIssues(s.manualIssues);
       }
       hydrated.current = true;
@@ -64,10 +66,10 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!hydrated.current || isTesting) return;
     saveSession({
-      testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues,
+      testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues, comparison,
       savedAt: new Date().toISOString(),
     });
-  }, [testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues, isTesting]);
+  }, [testedUrl, testResult, issues, checklistStatus, recentReports, manualIssues, comparison, isTesting]);
 
   const addLog = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setLogs(prev => [...prev, { message, type }]);
@@ -105,7 +107,8 @@ const App: React.FC = () => {
     setCurrentPhase('Initializing...');
 
     const agent = new TestingAgent(targetUrl, addLog, pct => setProgress(pct));
-    const { issues: foundIssues, result, checklistStatus: checks } = await agent.runFullAudit();
+    const { issues: foundIssues, result, checklistStatus: checks, comparison: cmp } = await agent.runFullAudit();
+    setComparison(cmp ?? null);
 
     const safeResult: TestResult = result ?? { mobile: EMPTY_SCORE_SET, foundData: {} };
 
@@ -114,52 +117,105 @@ const App: React.FC = () => {
     setChecklistStatus(checks);
     setIsTesting(false);
 
+    // Key a page by its path so an issue and its page's SEO suggestion line up
+    // regardless of " @ Mobile" / " › Header" suffixes on affectedPage.
+    const pageKey = (s: string) => {
+      const clean = (s || '').split(' @ ')[0].split(' › ')[0].trim();
+      try { return new URL(clean.startsWith('http') ? clean : 'https://' + clean).pathname.replace(/\/$/, '') || '/'; }
+      catch { return clean; }
+    };
+    const isSeoRecName = (n: string) => /^SEO recommendations for/i.test(n);
+    const isGeoRecName = (n: string) => /^AI-search \(GEO\) recommendations for/i.test(n);
+    const isRecName = (n: string) => isSeoRecName(n) || isGeoRecName(n);
+
+    // Per-page SEO (classic) and GEO recommendations — full text for the dedicated
+    // row, a compact version for every other issue on that page.
+    const mapRecs = (match: (n: string) => boolean, compactFilter: (d: string) => boolean, compactN: number) => {
+      const m = new Map<string, { full: string; compact: string }>();
+      for (const i of foundIssues) {
+        if (i.category === 'SEO' && match(i.name) && i.details?.length) {
+          const full = i.details.join('\n');
+          const compact = i.details.filter(compactFilter).slice(0, compactN).join('\n') || full;
+          m.set(pageKey(i.affectedPage), { full, compact });
+        }
+      }
+      return m;
+    };
+    const seoByPage = mapRecs(isSeoRecName, d => /^Suggested (title|meta description)/i.test(d), 2);
+    const geoByPage = mapRecs(isGeoRecName, d => d.trim().startsWith('•'), 2);
+    const fallbackSeo = seoByPage.get('/') ?? [...seoByPage.values()][0];
+    const fallbackGeo = geoByPage.get('/') ?? [...geoByPage.values()][0];
+
+    // ── Site-wide security posture — shown in the Security column on every row ──
+    const secItems = checks['Security'] ?? {};
+    const secMark = (s: string) => (s === 'pass' ? '✓' : s === 'fail' ? '✗' : s === 'warning' ? '⚠' : '–');
+    const securityFull = Object.entries(secItems).map(([k, v]) => `${secMark(v)} ${k}`).join('\n');
+
     // Merge scanned issues into the issue tracker
-    const scannedMapped: TestingIssue[] = foundIssues.map(i => ({
-      testCaseId: `QA_${i.id.padStart(3, '0')}`,
-      pageUrl: i.affectedPage || 'Current Page',
-      description: `${i.name}: ${i.description}`
-        + (i.details?.length ? '\n\nExact locations:\n' + i.details.map(d => '• ' + d).join('\n') : '')
-        + (i.steps ? '\n\nSteps to fix:\n' + i.steps : ''),
-      deviceType: /mobile/i.test(i.browser) ? 'mobile' : /tablet|pad/i.test(i.browser) ? 'tablet' : 'website',
-      status: 'open',
+    const scannedMapped: TestingIssue[] = foundIssues.map(i => {
+      const isSeoRec = i.category === 'SEO' && isSeoRecName(i.name);
+      const isGeoRec = i.category === 'SEO' && isGeoRecName(i.name);
+      const isRec = isRecName(i.name);
+      const isSecurity = i.category === 'Security';
+      const pageSeo = seoByPage.get(pageKey(i.affectedPage)) ?? fallbackSeo;
+      const pageGeo = geoByPage.get(pageKey(i.affectedPage)) ?? fallbackGeo;
+      const own = i.details?.length ? i.details.join('\n') : undefined;
+
+      // Classic SEO goes INLINE in the description (a short "SEO (this page)"
+      // block). GEO and Security stay in their own columns only.
+      const seoBlock = !isRec && !isSecurity && pageSeo?.compact
+        ? '\n\nSEO (this page):\n' + pageSeo.compact
+        : '';
+      const description = isRec
+        ? i.name + (isSeoRec && own ? '\n\n' + own : '')
+        : `${i.name}: ${i.description}`
+          + (i.details?.length ? '\n\nExact locations:\n' + i.details.map(d => '• ' + d).join('\n') : '')
+          + (i.steps ? '\n\nSteps to fix:\n' + i.steps : '')
+          + seoBlock;
+
+      return {
+        testCaseId: `QA_${i.id.padStart(3, '0')}`,
+        pageUrl: i.affectedPage || 'Current Page',
+        description,
+        geoSuggestion: isGeoRec ? own : pageGeo?.compact,
+        securityNote: isSecurity
+          ? [i.description, ...(i.details ?? [])].filter(Boolean).join('\n')
+          : (securityFull || undefined),
+        deviceType: /mobile/i.test(i.browser) ? 'mobile' : /tablet|pad/i.test(i.browser) ? 'tablet' : 'website',
+        status: 'open',
+        loggedBy: 'Test Engine',
+        assignedTo: 'Sodham',
+        remarks: i.category,
+        reportedOn: new Date().toLocaleDateString(),
+        priority: i.severity === 'Critical' ? 'High' : i.severity === 'Major' ? 'Medium' : 'Low',
+        type: isSeoRec ? 'SEO' : isGeoRec ? 'GEO' : isSecurity ? 'Security' : 'Auto Audit',
+        version: '',
+        screenshot: i.screenshot,
+      };
+    });
+
+    // Bugs that were open in the previous audit but are gone now → tracked as
+    // VERIFIED rows so each fix is recorded and auditable.
+    const prevRanAt = cmp?.previousRanAt ? new Date(cmp.previousRanAt).toLocaleDateString() : 'the previous audit';
+    const resolvedMapped: TestingIssue[] = (cmp?.resolved ?? []).map((r, n) => ({
+      testCaseId: `V_${String(n + 1).padStart(3, '0')}`,
+      pageUrl: r.affectedPage || 'Site Audit',
+      description: `${r.name}\n\nStatus: FIXED — this issue was open on ${prevRanAt} and is no longer detected in this audit.`,
+      deviceType: 'website',
+      status: 'verified',
       loggedBy: 'Test Engine',
       assignedTo: 'Sodham',
-      remarks: i.category,
+      remarks: r.category,
       reportedOn: new Date().toLocaleDateString(),
-      priority: i.severity === 'Critical' ? 'High' : i.severity === 'Major' ? 'Medium' : 'Low',
+      priority: r.severity === 'Critical' ? 'High' : r.severity === 'Major' ? 'Medium' : 'Low',
       type: 'Auto Audit',
       version: '',
-      screenshot: i.screenshot,
     }));
-
-    // Also map PASSED checks as "Verified" entries to provide a full "validated list"
-    const passedMapped: TestingIssue[] = [];
-    Object.entries(checks).forEach(([cat, items]) => {
-      Object.entries(items).forEach(([checkName, status]) => {
-        if (status === 'pass') {
-          passedMapped.push({
-            testCaseId: `V_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-            pageUrl: 'Site Audit',
-            description: `${checkName}: Successfully validated and passed.`,
-            deviceType: 'website',
-            status: 'verified',
-            loggedBy: 'Test Engine',
-            assignedTo: 'Sodham',
-            remarks: cat,
-            reportedOn: new Date().toLocaleDateString(),
-            priority: 'Low',
-            type: 'Auto Audit',
-            version: '',
-          });
-        }
-      });
-    });
 
     setManualIssues(prev => [
       ...prev.filter(i => !i.testCaseId.startsWith('AI_') && !i.testCaseId.startsWith('QA_') && !i.testCaseId.startsWith('V_')),
       ...scannedMapped,
-      ...passedMapped,
+      ...resolvedMapped,
     ]);
 
     const passedCount = Object.values(checks).reduce(
@@ -270,6 +326,8 @@ const App: React.FC = () => {
               <TestingViewPage
                 manualIssues={manualIssues}
                 onManualIssuesChange={setManualIssues}
+                comparison={comparison}
+                testedUrl={testedUrl}
               />
             </motion.div>
           )}

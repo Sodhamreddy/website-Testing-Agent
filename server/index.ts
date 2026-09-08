@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import { TestCaseAuditAgent } from './audit/testcase-agent.js';
+import { runExplorerAudit } from './agent/explorer.js';
+import { clientKey, getRun, listRuns, saveRun } from './store.js';
 
 const app = express();
 app.use(cors());
@@ -26,14 +27,35 @@ app.get('/api/audit/stream', async (req, res) => {
     if (!closed) res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
+  const log = (msg: string, type = 'info') => send({ type: 'log', msg, logType: type });
+  const progress = (pct: number) => send({ type: 'progress', pct });
+
   try {
-    const agent = new TestCaseAuditAgent(
-      url,
-      (msg, type = 'info') => send({ type: 'log', msg, logType: type }),
-      (pct) => send({ type: 'progress', pct }),
-    );
-    const result = await agent.runFullAudit();
-    send({ type: 'complete', ...result });
+    // Single engine: the exploration agent. The LLM roams the site with browser
+    // tools, deep-analyses each page (issues + GEO/AI-search recs), runs a
+    // security scan, and decides what to check — no fixed phases.
+    const result = await runExplorerAudit(url, log, progress);
+
+    // Persist this run for the client and diff it against the previous one.
+    let comparison = undefined;
+    let runId = undefined;
+    try {
+      const saved = saveRun(url, result.issues, result.checklistStatus, result.result);
+      comparison = saved.comparison;
+      runId = saved.run.id;
+      result.issues = saved.run.issues; // now carry a stable { fp }
+      const c = comparison.summary;
+      if (comparison.previousRanAt) {
+        log(`📊 vs previous audit (${new Date(comparison.previousRanAt).toLocaleString()}): ${c.resolvedCount} fixed, ${c.recurringCount} still open, ${c.newCount} new.`,
+          c.resolvedCount ? 'success' : 'info');
+      } else {
+        log('📊 First audit for this client — saved as the baseline.', 'info');
+      }
+    } catch (e) {
+      log(`⚠️ Could not save audit history: ${e instanceof Error ? e.message : e}`, 'warning');
+    }
+
+    send({ type: 'complete', ...result, comparison, runId });
   } catch (err) {
     send({ type: 'error', msg: String(err) });
   } finally {
@@ -41,9 +63,25 @@ app.get('/api/audit/stream', async (req, res) => {
   }
 });
 
+// ── Audit history per client ────────────────────────────────────────────────
+app.get('/api/audits/history', (req, res) => {
+  const url = (req.query.url ?? req.query.host) as string;
+  if (!url) { res.status(400).json({ error: 'url or host required' }); return; }
+  res.json({ client: clientKey(url), runs: listRuns(clientKey(url)) });
+});
+
+app.get('/api/audits/run', (req, res) => {
+  const url = (req.query.url ?? req.query.host) as string;
+  const id = req.query.id as string;
+  if (!url || !id) { res.status(400).json({ error: 'url/host and id required' }); return; }
+  const run = getRun(clientKey(url), id);
+  if (!run) { res.status(404).json({ error: 'run not found' }); return; }
+  res.json(run);
+});
+
 const PORT = Number(process.env.PORT ?? 3001);
 const server = app.listen(PORT, () => {
-  console.log(`🧪 QA audit server (deterministic Playwright engine — no LLM) → http://localhost:${PORT}`);
+  console.log(`🧪 QA exploration-agent server → http://localhost:${PORT}  (needs AI_API_KEY — see .env.example)`);
 });
 
 server.on('error', (err: NodeJS.ErrnoException) => {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ClipboardList, Search, Plus, Download, Edit2, Trash2, X,
   CheckCircle2, Clock, Monitor, Smartphone, Tablet, Camera, ExternalLink, AlertCircle,
-  AlertTriangle, Filter, ChevronRight, Image,
+  AlertTriangle, Filter, ChevronRight, Image, GitCompare,
 } from 'lucide-react';
 import type { TestingIssue } from '../types';
 import { exportIssueLogToExcel } from '../utils/export';
@@ -13,7 +13,7 @@ const TEAM_MEMBERS    = ['Sodham', 'Shilpa', 'AI Agent', 'QA Team', 'Dev Team'];
 const STATUS_CYCLE    = ['open', 'in progress', 'verified', 'fixed', 'watching'];
 const STATUS_OPTIONS  = STATUS_CYCLE;
 const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'] as const;
-const TYPE_OPTIONS    = ['UI', 'Functionality', 'Performance', 'Content', 'Accessibility', 'SEO', 'Auto Audit'];
+const TYPE_OPTIONS    = ['UI', 'Functionality', 'Performance', 'Content', 'Accessibility', 'SEO', 'GEO', 'Security', 'Auto Audit'];
 const DEVICE_OPTIONS  = ['website'];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -387,13 +387,18 @@ const IssueModal: React.FC<ModalProps> = ({ mode, issue, onSave, onClose }) => {
 interface TestingViewPageProps {
   manualIssues: TestingIssue[];
   onManualIssuesChange: (issues: TestingIssue[]) => void;
+  comparison?: import('../types').RunComparison | null;
+  testedUrl?: string;
 }
 
-const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManualIssuesChange }) => {
+const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManualIssuesChange, comparison, testedUrl }) => {
   const [search,        setSearch]   = useState('');
   const [statusFilter,  setStatusF]  = useState('all');
   const [priorityFilter,setPriorityF]= useState('all');
   const [modal, setModal]            = useState<{ mode: 'create' | 'edit'; issue: TestingIssue } | null>(null);
+  const [showCompare, setShowCompare] = useState(false);
+
+  const hasComparison = !!(comparison && comparison.previousRanAt);
 
   const filtered = useMemo(() => manualIssues.filter(i => {
     const q = search.toLowerCase();
@@ -504,6 +509,35 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
               <Download style={{ width: 13, height: 13 }} /> Export CSV
             </button>
             <button
+              onClick={() => setShowCompare(true)}
+              disabled={!hasComparison}
+              title={hasComparison
+                ? `Compare with the audit from ${new Date(comparison!.previousRanAt!).toLocaleString()}`
+                : 'No previous audit for this client yet'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', background: '#fff',
+                border: `1.5px solid ${hasComparison ? '#c7d2fe' : '#e5e7eb'}`,
+                borderRadius: 9, fontSize: 12, fontWeight: 600,
+                color: hasComparison ? '#4f46e5' : '#9ca3af',
+                cursor: hasComparison ? 'pointer' : 'not-allowed',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (hasComparison) e.currentTarget.style.background = '#eef2ff'; }}
+              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+            >
+              <GitCompare style={{ width: 13, height: 13 }} /> Compare
+              {hasComparison && comparison!.summary.resolvedCount > 0 && (
+                <span style={{
+                  marginLeft: 2, fontSize: 10, fontWeight: 800,
+                  background: '#dcfce7', color: '#16a34a',
+                  padding: '1px 6px', borderRadius: 20,
+                }}>
+                  {comparison!.summary.resolvedCount} fixed
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => exportIssueLogToExcel(manualIssues)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -610,6 +644,36 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
         </div>
       </div>
 
+      {/* ── Run comparison vs the previous audit ── */}
+      {comparison && comparison.previousRanAt && (
+        <div className="px-5 pt-4">
+          <div className="rounded-2xl p-4" style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}>
+            <div className="flex items-center flex-wrap gap-x-5 gap-y-1.5">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                vs previous audit
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {new Date(comparison.previousRanAt).toLocaleString()}
+              </span>
+              <span className="text-[12px] font-bold" style={{ color: '#16a34a' }}>
+                ✓ {comparison.summary.resolvedCount} fixed (verified)
+              </span>
+              <span className="text-[12px] font-bold" style={{ color: '#d97706' }}>
+                ↻ {comparison.summary.recurringCount} still open
+              </span>
+              <span className="text-[12px] font-bold" style={{ color: '#dc2626' }}>
+                + {comparison.summary.newCount} new
+              </span>
+              {comparison.summary.resolvedCount > 0 && (
+                <span className="text-[11px] text-slate-400">
+                  fixed bugs are listed below as <span className="font-semibold" style={{ color: '#16a34a' }}>Verified</span> rows
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Table area ── */}
       <div className="flex-1 overflow-auto p-5 custom-scrollbar">
         {filtered.length === 0 ? (
@@ -650,11 +714,11 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
             style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
           >
             <div className="overflow-x-auto">
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1680 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb', borderBottom: '2px solid #f3f4f6' }}>
                     <th style={{ width: 4, padding: 0 }} />
-                    {['ID', 'Page / Section', 'Issue Description', 'Scope', 'Status', 'Priority / Type', 'Assignment', 'Date', ''].map((h, i) => (
+                    {['ID', 'Page / Section', 'Issue Description', 'SEO/GEO Content Recommendation', 'Security', 'Scope', 'Status', 'Priority / Type', 'Assignment', 'Date', ''].map((h, i) => (
                       <th
                         key={i}
                         style={{
@@ -713,6 +777,19 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
                           >
                             {issue.testCaseId}
                           </span>
+                          {issue.testCaseId.startsWith('V_') && (
+                            <span
+                              title="Was open in the previous audit — not detected in this one"
+                              style={{
+                                display: 'block', marginTop: 5, width: 'fit-content',
+                                fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em',
+                                padding: '2px 6px', borderRadius: 5, textTransform: 'uppercase',
+                                background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0',
+                              }}
+                            >
+                              Verified · Fixed
+                            </span>
+                          )}
                         </td>
 
                         {/* Page */}
@@ -755,9 +832,9 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
                         {/* Description */}
                         <td style={{ padding: '14px 16px', verticalAlign: 'top', maxWidth: 300, overflowWrap: 'anywhere' }}>
                           <div style={{ marginBottom: 2 }}>
-                            {issue.description.split('\n').filter(l => l.trim()).slice(0, 8).map((line, i) => {
+                            {issue.description.split('\n').filter(l => l.trim()).slice(0, 13).map((line, i) => {
                               const isDetail = /^(\d+\.|• )/.test(line);
-                              const isHeader = /^(Exact locations|Steps to fix|Findings):/.test(line);
+                              const isHeader = /^(Exact locations|Steps to fix|Findings|SEO \(this page\)):/.test(line);
                               return (
                                 <div
                                   key={i}
@@ -777,7 +854,7 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
                                 </div>
                               );
                             })}
-                            {issue.description.split('\n').filter(l => l.trim()).length > 8 && (
+                            {issue.description.split('\n').filter(l => l.trim()).length > 13 && (
                               <button
                                 onClick={() => openEdit(issue)}
                                 style={{
@@ -829,6 +906,39 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
                             >
                               <Image style={{ width: 10, height: 10 }} /> Add screenshot
                             </button>
+                          )}
+                        </td>
+
+                        {/* SEO/GEO Content Recommendation */}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', width: 230, maxWidth: 230, overflowWrap: 'anywhere' }}>
+                          {issue.geoSuggestion ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {issue.geoSuggestion.split('\n').filter(l => l.trim()).map((line, i) => (
+                                <div key={i} style={{ fontSize: 10.5, color: '#4b5563', paddingLeft: line.trim().startsWith('•') ? 8 : 0, lineHeight: 1.45 }}>
+                                  {line}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12, color: '#d1d5db' }}>—</span>
+                          )}
+                        </td>
+
+                        {/* Security */}
+                        <td style={{ padding: '14px 16px', verticalAlign: 'top', width: 210, maxWidth: 210, overflowWrap: 'anywhere' }}>
+                          {issue.securityNote ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {issue.securityNote.split('\n').filter(l => l.trim()).slice(0, 12).map((line, i) => {
+                                const t = line.trim();
+                                const mark = t[0];
+                                const color = mark === '✗' ? '#dc2626' : mark === '⚠' ? '#d97706' : mark === '✓' ? '#16a34a' : '#6b7280';
+                                return (
+                                  <div key={i} style={{ fontSize: 10.5, color, lineHeight: 1.4 }}>{line}</div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12, color: '#d1d5db' }}>—</span>
                           )}
                         </td>
 
@@ -987,6 +1097,92 @@ const TestingViewPage: React.FC<TestingViewPageProps> = ({ manualIssues, onManua
       {modal && (
         <IssueModal mode={modal.mode} issue={modal.issue} onSave={handleSave} onClose={() => setModal(null)} />
       )}
+
+      <AnimatePresence>
+        {showCompare && hasComparison && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+            onClick={e => e.target === e.currentTarget && setShowCompare(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.97, opacity: 0, y: 10 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="bg-white w-full max-w-2xl max-h-[92vh] overflow-y-auto custom-scrollbar"
+              style={{ borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,0.2)' }}
+            >
+              <div
+                className="sticky top-0 z-10 flex items-center justify-between px-8 py-5"
+                style={{ background: 'rgba(255,255,255,0.97)', borderBottom: '1px solid #f3f4f6', backdropFilter: 'blur(8px)', borderRadius: '20px 20px 0 0' }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                    <GitCompare className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-[16px] font-bold text-gray-900">Comparison with previous audit</h2>
+                    <p className="text-[12px] text-gray-400">
+                      {testedUrl ? domainOf(testedUrl) + ' · ' : ''}
+                      previous run {new Date(comparison!.previousRanAt!).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowCompare(false)} style={{ padding: 6, borderRadius: 8, border: 'none', background: '#f3f4f6', cursor: 'pointer' }}>
+                  <X style={{ width: 16, height: 16, color: '#6b7280' }} />
+                </button>
+              </div>
+
+              <div className="px-8 py-6">
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  {[
+                    { label: 'Fixed & verified', value: comparison!.summary.resolvedCount, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+                    { label: 'Still open', value: comparison!.summary.recurringCount, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+                    { label: 'New this run', value: comparison!.summary.newCount, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+                  ].map(t => (
+                    <div key={t.label} className="rounded-xl p-4 text-center" style={{ background: t.bg, border: `1px solid ${t.border}` }}>
+                      <div className="text-[24px] font-black" style={{ color: t.color }}>{t.value}</div>
+                      <div className="section-label mt-1">{t.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <h3 className="text-[12px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                  Bugs fixed since last audit
+                </h3>
+                {comparison!.resolved.length === 0 ? (
+                  <p className="text-[13px] text-gray-400 py-4">
+                    No previously-reported bugs were resolved between the two runs.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {comparison!.resolved.map(r => (
+                      <div key={r.fp} className="flex items-start gap-3 rounded-xl p-3" style={{ background: '#f0fdf4', border: '1px solid #dcfce7' }}>
+                        <CheckCircle2 style={{ width: 16, height: 16, color: '#22c55e', flexShrink: 0, marginTop: 2 }} />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-gray-800">{r.name}</p>
+                          <p className="text-[11.5px] text-gray-400 truncate">
+                            {r.category} · {r.severity} · {r.affectedPage || 'Site audit'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {comparison!.summary.recurringCount > 0 && (
+                  <p className="text-[12px] text-gray-400 mt-5">
+                    {comparison!.summary.recurringCount} bug{comparison!.summary.recurringCount === 1 ? ' was' : 's were'} also
+                    present in the previous audit and {comparison!.summary.recurringCount === 1 ? 'is' : 'are'} still open — shown in the table below.
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -131,8 +131,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               Audit any website in one click.
             </h2>
             <p className="mt-2 text-[13px]" style={{ color: 'rgba(255,255,255,0.8)', maxWidth: 540 }}>
-              Enter a URL — the engine crawls every page, runs ~60 test cases at six screen sizes, and returns a
-              page-by-page bug report with marked-up evidence screenshots.
+              Enter a URL — an AI agent explores the site page by page, deep-analyses content, checks links,
+              forms, mobile layout, security and AI-search (GEO) readiness, and returns a bug report with
+              evidence screenshots.
             </p>
 
             <div className="flex gap-3 mt-6" style={{ maxWidth: 720 }}>
@@ -172,7 +173,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
 
             <div className="flex items-center gap-5 mt-5 text-[11.5px] font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> No API keys</span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Gemini API</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Every page &amp; screen size</span>
               <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Evidence screenshots</span>
             </div>
