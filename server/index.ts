@@ -79,7 +79,10 @@ app.get('/api/audits/run', (req, res) => {
   res.json(run);
 });
 
-const PORT = Number(process.env.PORT ?? 3001);
+// 8787, not 3001: 3001 is a crowded default (Next.js et al). When another app
+// held it, the Vite /api proxy forwarded audits into THAT app and the stream
+// died with an opaque 401.
+const PORT = Number(process.env.PORT ?? 8787);
 const server = app.listen(PORT, () => {
   console.log(`🧪 QA exploration-agent server → http://localhost:${PORT}  (needs AI_API_KEY — see .env.example)`);
 });

@@ -7,7 +7,7 @@ function auditServerPlugin(): Plugin {
 
   // Kill the whole process tree. With shell:true on Windows, serverProcess is a
   // cmd.exe wrapper — a plain .kill() leaves the real `node` orphaned holding
-  // port 3001, so the next `npm run dev` keeps serving stale code. taskkill /T
+  // the audit port, so the next `npm run dev` keeps serving stale code. taskkill /T
   // kills the children too; on POSIX a normal kill is enough.
   const killServer = () => {
     if (!serverProcess?.pid) return
@@ -53,7 +53,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:8787',
         changeOrigin: true,
       },
     },
