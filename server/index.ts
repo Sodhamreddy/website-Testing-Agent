@@ -89,9 +89,16 @@ const server = app.listen(PORT, () => {
 
 server.on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`\n❌ Port ${PORT} is already in use — an OLD audit server is still running.`);
-    console.error(`   This server did NOT start; the stale one keeps serving old code.`);
-    console.error(`   Kill it:  Get-NetTCPConnection -LocalPort ${PORT} | %{ Stop-Process -Id $_.OwningProcess -Force }\n`);
+    // Don't call it "an OLD audit server": on a shared host it is usually a
+    // DIFFERENT app. Under PM2 this exit becomes a restart loop that fills the
+    // log with this same line, so name the real cause and the right command.
+    const fix = process.platform === 'win32'
+      ? `Get-NetTCPConnection -LocalPort ${PORT} | %{ Stop-Process -Id $_.OwningProcess -Force }`
+      : `sudo ss -ltnp | grep ':${PORT}'   # then kill that pid, or set PORT in .env to a free port`;
+    console.error(`\n❌ Port ${PORT} is already in use — this server did NOT start.`);
+    console.error(`   Another process owns it: a stale audit server, or a different app entirely.`);
+    console.error(`   Free that port, or set PORT in .env to one that is free.`);
+    console.error(`   Find the owner:  ${fix}\n`);
   } else {
     console.error('[audit-server] listen error:', err.message);
   }
