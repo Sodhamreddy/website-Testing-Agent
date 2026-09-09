@@ -25,7 +25,15 @@ export async function crawl(ctx: AuditContext): Promise<void> {
     } catch { return false; }
   }).slice(0, MAX_CRAWL);
 
+  // Progress band 8-20, one tick per target. Counted at the TOP of the loop so
+  // skipped/failed pages still advance it — otherwise the band never completes.
+  let crawled = 0;
+  const tick = () => ctx.progress(8 + Math.round((12 * crawled) / Math.max(1, targets.length)));
+  tick();
+
   for (const url of targets) {
+    crawled++;
+    tick();
     if (ctx.pages.some((p) => norm(p.url) === norm(url))) continue;
     const t0 = Date.now();
     try { await ctx.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 }); }
@@ -47,6 +55,12 @@ export async function crawl(ctx: AuditContext): Promise<void> {
  * social / responsive / performance / SEO findings, not just the LLM's.
  */
 export async function baselineScan(ctx: AuditContext): Promise<string> {
+  // Progress band 26-42, stepped once per section below. This phase does the
+  // link 404 sweep and the responsive passes, so it dominates wall-clock time.
+  let section = 0;
+  const SECTIONS = 9;
+  const step = () => ctx.progress(26 + Math.round((16 * ++section) / SECTIONS));
+
   const { page, context, report } = ctx;
   const set = report.setChecklist.bind(report);
   const pages = ctx.pages;
@@ -59,6 +73,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (!home) return 'Baseline: no pages.';
 
   // ── Branding & header ────────────────────────────────────────────────────
+  step();
   await page.goto(home.url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
   const brand = await page.evaluate(() => {
     const logo = document.querySelector('header img[src*="logo" i], img[class*="logo" i], .logo img, #logo img, a[class*="logo" i] img, header a[href="/"] img');
@@ -88,6 +103,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (!faviconOk) add('Favicon missing', 'Branding', 'Minor', '1. Add <link rel="icon" href="/favicon.ico">', 'Browser', 'No favicon declared and /favicon.ico is unreachable.', undefined, home.url);
 
   // ── Per-page meta (titles, H1, viewport, home link) ──────────────────────
+  step();
   const meta: { url: string; title: string; desc: string; h1: number; viewport: boolean; homeLink: boolean; loadMs: number }[] = [];
   for (const p of pages) {
     await page.goto(p.url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
@@ -106,6 +122,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   for (const m of meta.slice(1).filter((m) => !m.homeLink)) add(`No home link on page: ${label(m.url)}`, 'Navigation', 'Major', '1. Ensure the logo links to "/" on every page', 'Browser', `${m.url} has no link back to the home page.`, undefined, m.url);
 
   // ── Links ────────────────────────────────────────────────────────────────
+  step();
   type LinkMeta = { href: string; text: string; from: string; target: string | null; external: boolean };
   const allLinks = new Map<string, LinkMeta>();
   for (const p of pages) {
@@ -140,6 +157,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (extSameTab.length) add('External links open in the same tab', 'Navigation', 'Minor', '1. Add target="_blank" rel="noopener" to external links', 'Browser', `${extSameTab.length} external link(s) navigate away in the same tab.`, extSameTab.slice(0, 10).map((l) => `"${l.text}" → ${l.href}`));
 
   // ── Content: font & heading-size consistency across pages ────────────────
+  step();
   const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
   const cdata: { url: string; fams: string[]; hs: Record<string, number[]> }[] = [];
   for (const p of pages) {
@@ -168,6 +186,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (crossPage.length) add('Heading sizes differ between pages', 'Content', 'Major', '1. Use the same heading styles on every page (shared stylesheet)', 'Browser', 'The same heading level renders at different sizes on different pages.', crossPage);
 
   // ── Images ───────────────────────────────────────────────────────────────
+  step();
   let brokenImgs = 0, missingAlt = 0, totalImgs = 0;
   for (const p of pages) {
     await page.goto(p.url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
@@ -188,6 +207,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   set('Images & media', 'Images load correctly', totalImgs > 0 && brokenImgs === 0 ? 'pass' : brokenImgs ? 'fail' : 'pending');
 
   // ── Buttons & keyboard (home) ───────────────────────────────────────────
+  step();
   await page.goto(home.url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(300);
   const btnData = await page.evaluate(() => {
@@ -223,6 +243,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (btnData.kb.length) add('Controls not accessible by keyboard', 'Accessibility', 'Major', '1. Remove positive tabindex values; never tabindex="-1" on visible controls', 'Browser', 'All fields and buttons should be operable without a mouse.', btnData.kb, home.url);
 
   // ── Social & footer ─────────────────────────────────────────────────────
+  step();
   const social = new Map<string, string | null>(); let footerLinks = 0; let footerSocial = false;
   for (const p of pages) {
     await page.goto(p.url, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
@@ -266,6 +287,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   if (fmiss.length) add(`Footer is missing ${fmiss.length} expected element(s)`, 'Footer', fmiss.length >= 4 ? 'Critical' : 'Major', '1. Add each missing element to the footer', 'Browser', 'A complete footer carries social icons, policy links, contact details and a copyright notice.', fmiss.map((m) => `MISSING: ${m}`), home.url, home.screenshot);
 
   // ── Forms ───────────────────────────────────────────────────────────────
+  step();
   let formPage: PageRef | null = pages.find((p) => /contact|enquir|quote|get-in-touch|feedback/i.test(p.url)) ?? null;
   let best = 0;
   for (const p of formPage ? [formPage] : pages) {
@@ -361,6 +383,7 @@ export async function baselineScan(ctx: AuditContext): Promise<string> {
   }
 
   // ── Responsiveness ──────────────────────────────────────────────────────
+  step();
   let desktopHScroll = false, mobileOk = true, tabletOk = true;
   const failed = new Set<string>();
   for (let pi = 0; pi < Math.min(pages.length, 3); pi++) {

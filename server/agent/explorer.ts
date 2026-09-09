@@ -30,13 +30,24 @@ const HISTORY_KEEP = 10;      // recent messages kept verbatim; older ones colla
 export async function runExplorerAudit(
   url: string,
   onLog: LogCallback,
-  onProgress: ProgressCallback,
+  reportProgress: ProgressCallback,
 ): Promise<{ issues: TestIssue[]; result: TestResult | null; checklistStatus: ChecklistStatus }> {
+  // Progress is MONOTONIC. Several phases report independently, so a lower
+  // value arriving late must never drag the ring backwards — the exploration
+  // loop used to reset it from 45 to 10 on its first turn. Also de-duplicates,
+  // so an unchanged percentage costs no SSE frame.
+  let lastPct = -1;
+  const onProgress: ProgressCallback = (pct) => {
+    const next = Math.max(lastPct, Math.min(100, Math.round(pct)));
+    if (next !== lastPct) { lastPct = next; reportProgress(next); }
+  };
+
   const report = new Reporter(onLog);
   onLog(`🧭 Agentic exploration audit (${MODEL}) — the agent will decide what to check.`);
   onProgress(3);
 
   const browser = await chromium.launch({ headless: true });
+  onProgress(5);
   const context = await browser.newContext({
     viewport: { width: 1366, height: 768 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -360,12 +371,18 @@ export async function runExplorerAudit(
     // so the issue tracker always has the full audit-phase findings (branding,
     // navigation, content, forms, buttons, images, social/footer, responsive,
     // performance, SEO), a security scan, and a deep GEO analysis of the home page.
+    // Progress bands for this section: crawl 8-20, security 20-26,
+    // baseline 26-42, home GEO 42-45. crawl() and baselineScan() report
+    // incrementally inside their own bands via ctx.progress.
     onLog('🌐 Crawling the site...');
     await crawl(ctx);
+    onProgress(20);
     onLog('🔒 Security scan...');
     const secSummary = await securityScan(ctx);
+    onProgress(26);
     onLog('🧪 Baseline checks (branding, links, forms, buttons, images, responsive, SEO)...');
     const baseSummary = await baselineScan(ctx);
+    onProgress(42);
     onLog('🔬 analyze_page → home');
     const homeSummary = await doAnalyzePage();
     onProgress(45);
@@ -439,7 +456,8 @@ export async function runExplorerAudit(
         messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(out).slice(0, RESULT_CAP) });
       }
 
-      onProgress(Math.min(90, 5 + turns * 5));
+      // Exploration occupies 45-90, continuing from the pre-loop phases.
+      onProgress(Math.min(90, 45 + turns * 5));
       trimHistory(messages, ctx.pages.length, report.issues.length);
     }
   } catch (err) {
