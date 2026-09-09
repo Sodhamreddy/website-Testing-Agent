@@ -1,0 +1,84 @@
+# Hostinger (Apache / LiteSpeed) config for the built frontend.
+# Vite copies everything in public/ into dist/, so this ships with the build.
+
+# Defence in depth: never serve dotfiles or env files, even if one is
+# accidentally uploaded into public_html. Without this, https://<domain>/.env
+# is a plain download — and bots scan for exactly that path.
+<FilesMatch "^\.|\.(env|env\..*|ini|log|sh|bak|sql)$">
+  Require all denied
+</FilesMatch>
+
+# Apache 2.2 fallback for the same rule.
+<IfModule !mod_authz_core.c>
+  <FilesMatch "^\.|\.(env|env\..*|ini|log|sh|bak|sql)$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Force HTTPS. The X-Forwarded-Proto check is required behind Hostinger's
+  # proxy/CDN layer — without it, %{HTTPS} reads "off" on an already-secure
+  # request and you get an infinite redirect loop.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Block dotfile requests outright before the SPA fallback sees them --
+  # EXCEPT /.well-known/, which Let's Encrypt uses to validate the domain.
+  # Without this exception, SSL issuance and auto-renewal fail with a 403.
+  RewriteCond %{REQUEST_URI} !^/\.well-known/
+  RewriteRule "(^|/)\." - [F]
+
+  # Single-page app: hand any path that isn't a real file/folder to index.html.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Hashed asset filenames change on every build, so cache them hard.
+# index.html must NOT be cached or users keep loading a stale bundle.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css                "access plus 1 year"
+  ExpiresByType application/javascript  "access plus 1 year"
+  ExpiresByType image/svg+xml           "access plus 1 month"
+  ExpiresByType image/png               "access plus 1 month"
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# Security headers. None of these need a backend.
+<IfModule mod_headers.c>
+  # Stop browsers guessing a MIME type different from what we send.
+  Header always set X-Content-Type-Options "nosniff"
+  # Don't leak full URLs to third parties (the app puts audited URLs in the path).
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # This dashboard has no reason to be framed by another site.
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+  # HSTS — only enable once HTTPS is confirmed working, it is hard to undo.
+  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+  # CSP — commented because it must name your API host to work. Uncomment and
+  # replace <API-HOST>, or audits break: connect-src gates the EventSource, and
+  # index.html pulls fonts from Google.
+  # Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://<API-HOST>"
+</IfModule>
+
+AddDefaultCharset utf-8
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>

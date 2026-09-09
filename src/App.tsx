@@ -107,7 +107,23 @@ const App: React.FC = () => {
     setCurrentPhase('Initializing...');
 
     const agent = new TestingAgent(targetUrl, addLog, pct => setProgress(pct));
-    const { issues: foundIssues, result, checklistStatus: checks, comparison: cmp } = await agent.runFullAudit();
+
+    let foundIssues: TestIssue[];
+    let result: TestResult | null;
+    let checks: ChecklistStatus;
+    let cmp: RunComparison | null | undefined;
+    try {
+      ({ issues: foundIssues, result, checklistStatus: checks, comparison: cmp } = await agent.runFullAudit());
+    } catch (err) {
+      // The stream failed (backend down, wrong API origin, CORS, mid-audit error).
+      // Surface it instead of leaving the UI stuck at 0% "Initializing" forever.
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog(`❌ Audit failed: ${msg}`, 'error');
+      addLog('Check the audit backend is reachable — locally: npm run dev:full; deployed: the API host in VITE_API_BASE.', 'warning');
+      setCurrentPhase('Failed');
+      setIsTesting(false);
+      return;
+    }
     setComparison(cmp ?? null);
 
     const safeResult: TestResult = result ?? { mobile: EMPTY_SCORE_SET, foundData: {} };

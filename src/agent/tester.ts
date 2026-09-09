@@ -1,4 +1,5 @@
 import type { TestIssue, TestResult, ChecklistStatus, RunComparison } from '../types';
+import { apiUrl } from '../utils/api';
 
 type LogType = 'info' | 'success' | 'warning' | 'error';
 type LogCallback = (msg: string, type?: LogType) => void;
@@ -25,7 +26,7 @@ export class TestingAgent {
     runId?: string | null;
   }> {
     return new Promise((resolve, reject) => {
-      const sse = new EventSource(`/api/audit/stream?url=${encodeURIComponent(this.url)}`);
+      const sse = new EventSource(apiUrl(`/api/audit/stream?url=${encodeURIComponent(this.url)}`));
 
       sse.onmessage = (event) => {
         const msg = JSON.parse(event.data as string);
